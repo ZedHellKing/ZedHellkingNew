@@ -1,0 +1,19 @@
+{
+  "name": "mister-bot",
+  "version": "1.0.0",
+  "description": "بوت مستر - بوت ماسنجر احترافي لا يتوقف",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js"
+  },
+  "dependencies": {
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "@ffprobe-installer/linux-x64": "^5.2.0",
+    "canvas": "^3.2.3",
+    "dotenv": "^17.4.2",
+    "express": "^4.22.2",
+    "ws3-fca": "^3.5.2",
+    "ytpl": "^2.3.0"
+  }
+}
