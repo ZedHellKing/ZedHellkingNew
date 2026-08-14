@@ -1,45 +1,45 @@
-# [Project name]
+# بوت مستر
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+بوت Facebook Messenger مكتوب بـ Node.js يستخدم مكتبة `ws3-fca`.
 
-## Run & Operate
+## كيفية التشغيل
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+```
+cd bot && node index.js
+```
 
-## Stack
+أو شغّل workflow **بوت مستر** من واجهة Replit.
 
-- pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+## المتطلبات
 
-## Where things live
+- ملف `bot/appstate.json` يحتوي على كوكيز فيسبوك صالحة
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+## تحديث الكوكيز
 
-## Architecture decisions
+إذا توقف البوت برسالة "Error retrieving userID":
+1. سجّل دخولك على فيسبوك في المتصفح
+2. صدّر الكوكيز بصيغة JSON باستخدام إضافة Cookie-Editor أو EditThisCookie
+3. استبدل محتوى `bot/appstate.json` بالكوكيز الجديدة
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+أو أرسلها عبر HTTP:
+```
+POST /updatecookies
+Content-Type: application/json
+Body: [... مصفوفة الكوكيز ...]
+```
 
-## Product
+## الأوامر المتاحة
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- `قصف / قصف ايقاف`
+- `كاتش / مجموعة / جروب`
+- `رد [كلمة]» [رد]`
+- `يوت [اسم المقطع]`
+
+## المنفذ
+
+البوت يشغّل خادم Express على المنفذ `PORT` (افتراضياً 3000).
+- `GET /` — حالة البوت
+- `GET /ping` — فحص الحياة
+- `POST /updatecookies` — تحديث الكوكيز
 
 ## User preferences
-
-_Populate as you build — explicit user instructions worth remembering across sessions._
-
-## Gotchas
-
-_Populate as you build — sharp edges, "always run X before Y" rules._
-
-## Pointers
-
-- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
