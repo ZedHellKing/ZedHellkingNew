@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const ADMINS = new Set(['61591827958504',]);
+const ADMINS = new Set(['61592604442767',]);
 const commands = new Map();
 
 // عداد الرسائل لكل جروب — كل 568 رسالة يتفاعل البوت
