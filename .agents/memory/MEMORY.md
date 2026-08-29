@@ -1,0 +1,1 @@
+- [Pinned group images](pinned-group-images.md) — keep a local image copy because Facebook attachment URLs may expire.

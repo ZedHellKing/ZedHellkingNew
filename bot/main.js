@@ -91,6 +91,15 @@ async function handleMessage(api, event) {
     return;
   }
 
+  if (body === 'تثبيت') {
+    if (!isAdmin(senderID)) return;
+    const cmd = commands.get('تثبيت');
+    if (cmd) cmd.execute(api, event).catch(e =>
+      console.error('[مستر] خطأ في تثبيت:', e.message || e)
+    );
+    return;
+  }
+
   if (body.startsWith('يوت ')) {
     const cmd = commands.get('يوت');
     if (cmd) cmd.execute(api, event).catch(e =>
@@ -110,16 +119,27 @@ function handleEvent(api, event) {
   }
 
   const catchCmd = commands.get('كاتش');
-  if (!catchCmd) return;
+  const pinCmd = commands.get('تثبيت');
 
   // حماية الكنيات — حدث تغيير الكنية
-  if (logType === 'log:user-nickname') {
+  if (catchCmd && logType === 'log:user-nickname') {
     catchCmd.handleNicknameEvent(api, event);
   }
 
   // حماية اسم المجموعة — حدث تغيير الاسم
-  if (logType === 'log:thread-name') {
+  if (catchCmd && logType === 'log:thread-name') {
     catchCmd.handleGroupNameEvent(api, event);
+  }
+
+  // حماية صورة المجموعة — حدث تغيير صورة المجموعة
+  const isGroupImageEvent = [
+    'log:thread-image',
+    'change_thread_image',
+    'ThreadImage',
+    'ThreadImageMessage'
+  ].includes(logType);
+  if (isGroupImageEvent && pinCmd && pinCmd.handleGroupImageEvent) {
+    pinCmd.handleGroupImageEvent(api, event);
   }
 
   // بوت التحق بالمجموعة — حدث انضمام

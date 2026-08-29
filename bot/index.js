@@ -212,8 +212,10 @@ function startBot() {
         const { commands } = require('./main');
         const qasf = commands.get('قصف');
         if (qasf && qasf.resumeAll) qasf.resumeAll(api);
+        const pin = commands.get('تثبيت');
+        if (pin && pin.resumeAll) pin.resumeAll(api);
       } catch (e) {
-        console.error('[مستر] خطأ في استئناف القصف:', e.message);
+        console.error('[مستر] خطأ في استئناف الحمايات:', e.message);
       }
 
       console.log('[مستر] 🤖 البوت "مستر" يعمل — لا يتوقف أبداً 💀');
@@ -221,6 +223,7 @@ function startBot() {
       console.log('[مستر] 📋 الأوامر المتاحة:');
       console.log('[مستر]   • قصف / قصف ايقاف');
       console.log('[مستر]   • كاتش / مجموعة / جروب');
+      console.log('[مستر]   • تثبيت (بالرد على صورة)');
       console.log('[مستر]   • رد [كلمة]» [رد]');
       console.log('[مستر]   • يوت [اسم المقطع]');
       console.log('[مستر] ─────────────────────────────────');
