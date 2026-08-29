@@ -1,68 +1,119 @@
+const activeRuns = new Map();
+
+const STOP_MESSAGES = new Set(['بانكاي ايقاف', 'بانكاي إيقاف']);
+const START_PREFIX = 'بانكاي ';
+const CYCLE_DELAY = 3000;
+
+function getTargetID(event, body) {
+  if (event.mentions && Object.keys(event.mentions).length > 0) {
+    return String(Object.keys(event.mentions)[0]);
+  }
+
+  const targetID = body.slice(START_PREFIX.length).trim().split(/\s+/)[0];
+  return targetID || null;
+}
+
+function stopRun(threadID) {
+  const run = activeRuns.get(threadID);
+  if (!run) return false;
+
+  run.stopped = true;
+  if (run.timer) clearTimeout(run.timer);
+  activeRuns.delete(threadID);
+  return true;
+}
+
+async function runCycle(api, threadID, run) {
+  if (run.stopped || activeRuns.get(threadID) !== run) return;
+
+  try {
+    await api.removeUserFromGroup(run.targetID, threadID);
+    if (run.stopped || activeRuns.get(threadID) !== run) return;
+
+    await api.addUserToGroup(run.targetID, threadID);
+    console.log(`[بانكاي] ✅ طرد وإضافة ${run.targetID} في ${threadID}`);
+  } catch (error) {
+    console.error(`[بانكاي] توقف في ${threadID}:`, error.message || error);
+    stopRun(threadID);
+    try {
+      await api.sendMessage(
+        '❌ توقف بانكاي. تأكد أن حساب البوت أدمن وأن الـ ID صحيح.',
+        threadID
+      );
+    } catch (_) {}
+    return;
+  }
+
+  if (run.stopped || activeRuns.get(threadID) !== run) return;
+  run.timer = setTimeout(() => {
+    run.timer = null;
+    runCycle(api, threadID, run).catch(error =>
+      console.error('[بانكاي] خطأ في دورة التكرار:', error.message || error)
+    );
+  }, CYCLE_DELAY);
+}
+
 module.exports = {
   name: 'بانكاي',
 
   async execute(api, event) {
-    const threadID = String(event.threadID);
+    const threadID = String(event.threadID || '');
     const body = (event.body || '').trim();
+    if (!threadID || !body.startsWith('بانكاي')) return;
 
-    // التحقق من أن الرسالة تبدأ بكلمة "بانكاي"
-    if (!body.startsWith('بانكاي')) return;
+    if (STOP_MESSAGES.has(body)) {
+      const stopped = stopRun(threadID);
+      if (stopped) {
+        try { await api.sendMessage('تم الايقاف يا اسطورة زيد', threadID); } catch (_) {}
+      } else {
+        try { await api.sendMessage('⚠️ لا يوجد بانكاي يعمل حالياً.', threadID); } catch (_) {}
+      }
+      return;
+    }
+
+    if (!body.startsWith(START_PREFIX)) {
+      try {
+        await api.sendMessage('⚠️ الصيغة: بانكاي [ID أو منشن]', threadID);
+      } catch (_) {}
+      return;
+    }
+
+    const targetID = getTargetID(event, body);
+    if (!targetID || !/^\d+$/.test(targetID)) {
+      try {
+        await api.sendMessage('⚠️ يرجى كتابة ID صحيح أو عمل منشن للعضو.', threadID);
+      } catch (_) {}
+      return;
+    }
+
+    if (activeRuns.has(threadID)) {
+      try {
+        await api.sendMessage(
+          '⚠️ بانكاي يعمل بالفعل. اكتب «بانكاي ايقاف» أولاً لإيقافه.',
+          threadID
+        );
+      } catch (_) {}
+      return;
+    }
+
+    const run = { targetID, stopped: false, timer: null };
+    activeRuns.set(threadID, run);
 
     try {
-      let targetID = null;
+      await api.sendMessage(
+        `⚔️ بدأ بانكاي على ${targetID}\n🔁 طرد وإضافة كل 3 ثواني\n⏹️ للإيقاف: بانكاي ايقاف`,
+        threadID
+      );
+    } catch (_) {}
 
-      // 1. محاولة جلب الآيدي من المنشن (Mentions)
-      if (event.mentions && Object.keys(event.mentions).length > 0) {
-        targetID = String(Object.keys(event.mentions)[0]);
-      } else {
-        // 2. جلب الآيدي إذا كُتب بعد كلمة بانكاي (مثال: بانكاي 1000xxxx)
-        const args = body.split(' ');
-        if (args.length > 1) {
-          targetID = String(args[1]).trim();
-        }
-      }
+    await runCycle(api, threadID, run);
+  },
 
-      // إذا لم يجد البوت آيدي أو منشن صحيح بعد كلمة بانكاي
-      if (!targetID || isNaN(targetID)) {
-        try { 
-          await api.sendMessage('⚠️ يرجى عمل منشن للعضو أو كتابة الـ ID الخاص به بعد كلمة بانكاي.', threadID); 
-        } catch (e) {}
-        return;
-      }
+  stopAll() {
+    for (const threadID of activeRuns.keys()) stopRun(threadID);
+  },
 
-      // إرسال البادئة (رسالة البداية)
-      try { 
-        await api.sendMessage("_ جــاري بـداء مـراســم البـانڪـاي 𝑆𝐴𝑍𝑂 _", threadID); 
-      } catch (e) {}
-
-      const startTime = Date.now();
-      const duration = 15000; // 15 ثانية فقط
-
-      // حلقة الطرد والإضافة المتكررة المخصصة للحساب الشخصي
-      while (Date.now() - startTime < duration) {
-        try {
-          // طرد العضو
-          await api.removeUserFromGroup(targetID, threadID);
-          // انتظار نصف ثانية لتجنب الحظر السريع من فيسبوك
-          await new Promise(resolve => setTimeout(resolve, 500)); 
-          
-          // إعادة إضافة العضو
-          await api.addUserToGroup(targetID, threadID);
-          // انتظار نصف ثانية أخرى قبل التكرار
-          await new Promise(resolve => setTimeout(resolve, 500));
-        } catch (loopError) {
-          // في حال حدوث خطأ (مثل أن الحساب الشخصي ليس أدمن)، نضع تأخير بسيط لمنع تجميد البوت
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      }
-
-      // إرسال رسالة النهاية بعد اكتمال الـ 15 ثانية
-      try { 
-        await api.sendMessage("_ تـم انهـاء بـانكـاي 𝑆𝐴𝑍𝑂 _", threadID); 
-      } catch (e) {}
-
-    } catch (generalError) {
-      console.error(`[بانكاي] خطأ عام في الأمر:`, generalError.message || generalError);
-    }
+  getActiveRuns() {
+    return activeRuns;
   }
 };

@@ -105,6 +105,16 @@ async function handleMessage(api, event) {
     return;
   }
 
+  if (body === "بانكاي" || body.startsWith("بانكاي ")) {
+    if (!isAdmin(senderID)) return;
+    const cmd = commands.get("بانكاي");
+    if (cmd)
+      cmd
+        .execute(api, event)
+        .catch((e) => console.error("[مستر] خطأ في بانكاي:", e.message || e));
+    return;
+  }
+
   if (body === "تثبيت") {
     if (!isAdmin(senderID)) return;
     const cmd = commands.get("تثبيت");
