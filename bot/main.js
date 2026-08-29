@@ -1,23 +1,23 @@
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs");
+const path = require("path");
 
-const ADMINS = new Set(['61593393190952',]);
+const ADMINS = new Set(["61593975653350"]);
 const commands = new Map();
 
 // عداد الرسائل لكل جروب — كل 568 رسالة يتفاعل البوت
 const msgCounters = new Map();
-const REACTION_EMOJIS = ['🖤', '🥒', '☠️', '💀', '🔥'];
+const REACTION_EMOJIS = ["🖤", "🥒", "☠️", "💀", "🔥"];
 const REACTION_MILESTONE = 568;
 
-const BOT_NICKNAME = ` ⏤͟͟ 卍 𝐙̲̍ 𝐄̶̷̸ 𝐃̶̷̸   𝐇̲̍𝐄̶̷̸𝐋̶̷̸𝐋̶̷̸ 𝐊̶̷̸𝐈̍𝐍̶̷̸𝐆̶̷̸`;
+const BOT_NICKNAME = ` ⏤͟͟ 卍 𝐃̶̷̸  𝐄̲̍  𝐀̶̷̸  𝐓̲̍  𝐇̶̷̸`;
 
 function isAdmin(senderID) {
   return ADMINS.has(String(senderID));
 }
 
 function loadCommands() {
-  const commandsPath = path.join(__dirname, 'Commands');
-  const files = fs.readdirSync(commandsPath).filter(f => f.endsWith('.js'));
+  const commandsPath = path.join(__dirname, "Commands");
+  const files = fs.readdirSync(commandsPath).filter((f) => f.endsWith(".js"));
   commands.clear();
   for (const file of files) {
     try {
@@ -35,11 +35,13 @@ function loadCommands() {
 async function handleMessage(api, event) {
   if (!event || !event.body) return;
 
-  const body = (event.body || '').trim();
+  const body = (event.body || "").trim();
   const threadID = String(event.threadID);
-  const senderID = String(event.senderID || '');
+  const senderID = String(event.senderID || "");
 
-  console.log(`[مستر] 📩 رسالة من ${senderID} في ${threadID}: "${body.substring(0, 60)}"`);
+  console.log(
+    `[مستر] 📩 رسالة من ${senderID} في ${threadID}: "${body.substring(0, 60)}"`,
+  );
 
   // عداد 568 — يتفاعل على الرسالة رقم 568 وكل مضاعفاتها
   if (event.messageID && event.isGroup !== false) {
@@ -47,64 +49,78 @@ async function handleMessage(api, event) {
     const next = prev + 1;
     msgCounters.set(threadID, next);
     if (next % REACTION_MILESTONE === 0) {
-      const emoji = REACTION_EMOJIS[Math.floor(Math.random() * REACTION_EMOJIS.length)];
-      console.log(`[مستر] 🎯 رسالة #${next} في ${threadID} — تفاعل بـ ${emoji}`);
-      try { await api.setMessageReaction(emoji, event.messageID); } catch (e) {
-        console.error('[مستر] خطأ في التفاعل:', e.message || e);
+      const emoji =
+        REACTION_EMOJIS[Math.floor(Math.random() * REACTION_EMOJIS.length)];
+      console.log(
+        `[مستر] 🎯 رسالة #${next} في ${threadID} — تفاعل بـ ${emoji}`,
+      );
+      try {
+        await api.setMessageReaction(emoji, event.messageID);
+      } catch (e) {
+        console.error("[مستر] خطأ في التفاعل:", e.message || e);
       }
     }
   }
 
   // الرد التلقائي — يعمل دائماً قبل فحص الأوامر (ليس بالإدمن فقط)
-  const replyCmd = commands.get('رد');
+  const replyCmd = commands.get("رد");
   if (replyCmd && replyCmd.checkAutoReply) {
-    await replyCmd.checkAutoReply(api, event).catch(e =>
-      console.error('[مستر] خطأ في checkAutoReply:', e.message)
-    );
+    await replyCmd
+      .checkAutoReply(api, event)
+      .catch((e) => console.error("[مستر] خطأ في checkAutoReply:", e.message));
   }
 
   // أوامر محمية: يستخدمها الإدمن فقط
-  if (body === 'قصف' || body === 'قصف ايقاف' || body === 'قصف إيقاف') {
+  if (body === "قصف" || body === "قصف ايقاف" || body === "قصف إيقاف") {
     if (!isAdmin(senderID)) return;
-    const cmd = commands.get('قصف');
-    if (cmd) cmd.execute(api, event).catch(e =>
-      console.error('[مستر] خطأ في قصف:', e.message)
-    );
+    const cmd = commands.get("قصف");
+    if (cmd)
+      cmd
+        .execute(api, event)
+        .catch((e) => console.error("[مستر] خطأ في قصف:", e.message));
     return;
   }
 
-  if (body.startsWith('كاتش ') || body.startsWith('مجموعة ') || body.startsWith('جروب ')) {
+  if (
+    body.startsWith("كاتش ") ||
+    body.startsWith("مجموعة ") ||
+    body.startsWith("جروب ")
+  ) {
     if (!isAdmin(senderID)) return;
-    const cmd = commands.get('كاتش');
-    if (cmd) cmd.execute(api, event).catch(e =>
-      console.error('[مستر] خطأ في كاتش/مجموعة:', e.message)
-    );
+    const cmd = commands.get("كاتش");
+    if (cmd)
+      cmd
+        .execute(api, event)
+        .catch((e) => console.error("[مستر] خطأ في كاتش/مجموعة:", e.message));
     return;
   }
 
-  if (body.startsWith('رد ') || body === 'رد قائمة') {
+  if (body.startsWith("رد ") || body === "رد قائمة") {
     if (!isAdmin(senderID)) return;
-    const cmd = commands.get('رد');
-    if (cmd) cmd.execute(api, event).catch(e =>
-      console.error('[مستر] خطأ في رد:', e.message)
-    );
+    const cmd = commands.get("رد");
+    if (cmd)
+      cmd
+        .execute(api, event)
+        .catch((e) => console.error("[مستر] خطأ في رد:", e.message));
     return;
   }
 
-  if (body === 'تثبيت') {
+  if (body === "تثبيت") {
     if (!isAdmin(senderID)) return;
-    const cmd = commands.get('تثبيت');
-    if (cmd) cmd.execute(api, event).catch(e =>
-      console.error('[مستر] خطأ في تثبيت:', e.message || e)
-    );
+    const cmd = commands.get("تثبيت");
+    if (cmd)
+      cmd
+        .execute(api, event)
+        .catch((e) => console.error("[مستر] خطأ في تثبيت:", e.message || e));
     return;
   }
 
-  if (body.startsWith('يوت ')) {
-    const cmd = commands.get('يوت');
-    if (cmd) cmd.execute(api, event).catch(e =>
-      console.error('[مستر] خطأ في يوت:', e.message)
-    );
+  if (body.startsWith("يوت ")) {
+    const cmd = commands.get("يوت");
+    if (cmd)
+      cmd
+        .execute(api, event)
+        .catch((e) => console.error("[مستر] خطأ في يوت:", e.message));
     return;
   }
 }
@@ -113,50 +129,60 @@ function handleEvent(api, event) {
   if (!event) return;
 
   // طباعة الحدث للتشخيص
-  const logType = event.logMessageType || event.type || '';
-  if (logType !== 'read_receipt') {
+  const logType = event.logMessageType || event.type || "";
+  if (logType !== "read_receipt") {
     console.log(`[مستر] 📌 حدث: type=${event.type} | logType=${logType}`);
   }
 
-  const catchCmd = commands.get('كاتش');
-  const pinCmd = commands.get('تثبيت');
+  const catchCmd = commands.get("كاتش");
+  const pinCmd = commands.get("تثبيت");
 
   // حماية الكنيات — حدث تغيير الكنية
-  if (catchCmd && logType === 'log:user-nickname') {
+  if (catchCmd && logType === "log:user-nickname") {
     catchCmd.handleNicknameEvent(api, event);
   }
 
   // حماية اسم المجموعة — حدث تغيير الاسم
-  if (catchCmd && logType === 'log:thread-name') {
+  if (catchCmd && logType === "log:thread-name") {
     catchCmd.handleGroupNameEvent(api, event);
   }
 
   // حماية صورة المجموعة — حدث تغيير صورة المجموعة
   const isGroupImageEvent = [
-    'log:thread-image',
-    'change_thread_image',
-    'ThreadImage',
-    'ThreadImageMessage'
+    "log:thread-image",
+    "change_thread_image",
+    "ThreadImage",
+    "ThreadImageMessage",
   ].includes(logType);
   if (isGroupImageEvent && pinCmd && pinCmd.handleGroupImageEvent) {
     pinCmd.handleGroupImageEvent(api, event);
   }
 
   // بوت التحق بالمجموعة — حدث انضمام
-  if (logType === 'log:subscribe') {
+  if (logType === "log:subscribe") {
     const threadID = String(event.threadID);
     const logData = event.logMessageData || {};
     const addedParticipants = logData.addedParticipants || [];
     const botID = api.getCurrentUserID ? api.getCurrentUserID() : null;
 
-    if (botID && addedParticipants.some(p => String(p.userFbId || p.userID || p.id || '') === String(botID))) {
-      console.log(`[مستر] ✅ تمت إضافتي إلى المجموعة ${threadID} — جاري تعيين الكنية...`);
+    if (
+      botID &&
+      addedParticipants.some(
+        (p) => String(p.userFbId || p.userID || p.id || "") === String(botID),
+      )
+    ) {
+      console.log(
+        `[مستر] ✅ تمت إضافتي إلى المجموعة ${threadID} — جاري تعيين الكنية...`,
+      );
       setTimeout(async () => {
         try {
           await api.nickname(BOT_NICKNAME, threadID, String(botID));
           console.log(`[مستر] ✅ تم تعيين الكنية في المجموعة ${threadID}`);
         } catch (e) {
-          console.error(`[مستر] خطأ في تعيين الكنية بعد الانضمام:`, e.message || e);
+          console.error(
+            `[مستر] خطأ في تعيين الكنية بعد الانضمام:`,
+            e.message || e,
+          );
         }
       }, 2000);
     }
