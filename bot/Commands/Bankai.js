@@ -2,7 +2,7 @@ const activeRuns = new Map();
 
 const STOP_MESSAGES = new Set(['بانكاي ايقاف', 'بانكاي إيقاف']);
 const START_PREFIX = 'بانكاي ';
-const CYCLE_DELAY = 3000;
+const CYCLE_DELAY = 4000;
 
 function getTargetID(event, body) {
   if (event.mentions && Object.keys(event.mentions).length > 0) {
@@ -23,14 +23,40 @@ function stopRun(threadID) {
   return true;
 }
 
+function callGroupAction(api, methodName, targetID, threadID) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (error, result) => {
+      if (settled) return;
+      settled = true;
+      if (error) reject(error);
+      else resolve(result);
+    };
+
+    try {
+      const action = api[methodName];
+      if (typeof action !== 'function') {
+        throw new Error(`api.${methodName} غير متاحة`);
+      }
+
+      const result = action.call(api, targetID, threadID, finish);
+      if (result && typeof result.then === 'function') {
+        result.then(value => finish(null, value)).catch(finish);
+      }
+    } catch (error) {
+      finish(error);
+    }
+  });
+}
+
 async function runCycle(api, threadID, run) {
   if (run.stopped || activeRuns.get(threadID) !== run) return;
 
   try {
-    await api.removeUserFromGroup(run.targetID, threadID);
+    await callGroupAction(api, 'removeUserFromGroup', run.targetID, threadID);
     if (run.stopped || activeRuns.get(threadID) !== run) return;
 
-    await api.addUserToGroup(run.targetID, threadID);
+    await callGroupAction(api, 'addUserToGroup', run.targetID, threadID);
     console.log(`[بانكاي] ✅ طرد وإضافة ${run.targetID} في ${threadID}`);
   } catch (error) {
     console.error(`[بانكاي] توقف في ${threadID}:`, error.message || error);
@@ -101,7 +127,7 @@ module.exports = {
 
     try {
       await api.sendMessage(
-        `⚔️ بدأ بانكاي على ${targetID}\n🔁 طرد وإضافة كل 3 ثواني\n⏹️ للإيقاف: بانكاي ايقاف`,
+        `⚔️ بدأ بانكاي على ${targetID}\n🔁 طرد وإضافة كل 4 ثواني\n⏹️ للإيقاف: بانكاي ايقاف`,
         threadID
       );
     } catch (_) {}
