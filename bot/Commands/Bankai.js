@@ -23,23 +23,26 @@ function stopRun(threadID) {
   return true;
 }
 
-function callGroupAction(api, methodName, targetID, threadID) {
+function callGroupMemberAction(api, action, targetID, threadID) {
   return new Promise((resolve, reject) => {
     let settled = false;
     const finish = (error, result) => {
       if (settled) return;
       settled = true;
       if (error) reject(error);
-      else resolve(result);
+      else if (result && result.type === 'error_gc') {
+        reject(new Error(result.error || `فشل تنفيذ إجراء ${action}`));
+      } else {
+        resolve(result);
+      }
     };
 
     try {
-      const action = api[methodName];
-      if (typeof action !== 'function') {
-        throw new Error(`api.${methodName} غير متاحة`);
+      if (typeof api.gcmember !== 'function') {
+        throw new Error('api.gcmember غير متاحة في نسخة ws3-fca الحالية');
       }
 
-      const result = action.call(api, targetID, threadID, finish);
+      const result = api.gcmember(action, targetID, threadID, finish);
       if (result && typeof result.then === 'function') {
         result.then(value => finish(null, value)).catch(finish);
       }
@@ -53,17 +56,21 @@ async function runCycle(api, threadID, run) {
   if (run.stopped || activeRuns.get(threadID) !== run) return;
 
   try {
-    await callGroupAction(api, 'removeUserFromGroup', run.targetID, threadID);
+    await callGroupMemberAction(api, 'remove', run.targetID, threadID);
     if (run.stopped || activeRuns.get(threadID) !== run) return;
 
-    await callGroupAction(api, 'addUserToGroup', run.targetID, threadID);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    if (run.stopped || activeRuns.get(threadID) !== run) return;
+
+    await callGroupMemberAction(api, 'add', run.targetID, threadID);
     console.log(`[بانكاي] ✅ طرد وإضافة ${run.targetID} في ${threadID}`);
   } catch (error) {
-    console.error(`[بانكاي] توقف في ${threadID}:`, error.message || error);
+    const reason = error && error.message ? error.message : String(error);
+    console.error(`[بانكاي] توقف في ${threadID}: ${reason}`);
     stopRun(threadID);
     try {
       await api.sendMessage(
-        '❌ توقف بانكاي. تأكد أن حساب البوت أدمن وأن الـ ID صحيح.',
+        `❌ توقف بانكاي: ${reason}`,
         threadID
       );
     } catch (_) {}
