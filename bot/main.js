@@ -115,7 +115,7 @@ async function handleMessage(api, event) {
     return;
   }
 
-  if (body === "تثبيت") {
+  if (body === "تثبيت" || body === "تثبيت ايقاف" || body === "تثبيت إيقاف") {
     if (!isAdmin(senderID)) return;
     const cmd = commands.get("تثبيت");
     if (cmd)

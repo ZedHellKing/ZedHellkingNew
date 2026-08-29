@@ -7,6 +7,7 @@ const statePath = path.join(__dirname, '..', 'data', 'pinned-images.json');
 const applying = new Set();
 const suppressEvents = new Map();
 const pinnedImages = loadState();
+const STOP_MESSAGES = new Set(['تثبيت ايقاف', 'تثبيت إيقاف']);
 
 function loadState() {
   try {
@@ -38,6 +39,21 @@ function imageURL(attachment) {
 
 function imagePath(threadID) {
   return path.join(dataDir, `${threadID.replace(/[^a-zA-Z0-9_-]/g, '_')}.jpg`);
+}
+
+function stopPin(threadID) {
+  const config = pinnedImages[threadID];
+  if (!config) return false;
+
+  delete pinnedImages[threadID];
+  suppressEvents.delete(threadID);
+  saveState();
+  try {
+    if (config.path && fs.existsSync(config.path)) fs.unlinkSync(config.path);
+  } catch (error) {
+    console.error(`[تثبيت] تعذر حذف الصورة المحفوظة في ${threadID}:`, error.message || error);
+  }
+  return true;
 }
 
 async function downloadImage(url, destination) {
@@ -87,9 +103,19 @@ module.exports = {
 
   async execute(api, event) {
     const threadID = String(event.threadID || '');
-    const attachment = getReplyImage(event);
+    const body = (event.body || '').trim();
     if (!threadID) return;
 
+    if (STOP_MESSAGES.has(body)) {
+      if (stopPin(threadID)) {
+        await api.sendMessage('✅ تم إيقاف تثبيت الصورة وإلغاء الحماية.', threadID);
+      } else {
+        await api.sendMessage('⚠️ لا توجد صورة مثبتة في هذه المجموعة.', threadID);
+      }
+      return;
+    }
+
+    const attachment = getReplyImage(event);
     if (!attachment) {
       await api.sendMessage('⚠️ يجب الرد على صورة ثم كتابة: تثبيت', threadID);
       return;
@@ -131,7 +157,7 @@ module.exports = {
       applyPinnedImage(api, threadID, 'تغيير مرصود').catch(error =>
         console.error('[تثبيت] فشل إرجاع الصورة:', error.message || error)
       );
-    }, 500);
+    }, 3000);
   },
 
   async resumeAll(api) {
