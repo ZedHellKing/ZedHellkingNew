@@ -115,6 +115,16 @@ async function handleMessage(api, event) {
     return;
   }
 
+  if (body === "السياجين") {
+    if (!isAdmin(senderID)) return;
+    const cmd = commands.get("السياجين");
+    if (cmd)
+      cmd
+        .execute(api, event)
+        .catch((e) => console.error("[مستر] خطأ في السياجين:", e.message || e));
+    return;
+  }
+
   if (body === "تثبيت" || body === "تثبيت ايقاف" || body === "تثبيت إيقاف") {
     if (!isAdmin(senderID)) return;
     const cmd = commands.get("تثبيت");
