@@ -95,6 +95,20 @@ async function handleMessage(api, event) {
     return;
   }
 
+  if (
+    body === "ماهوراغا" ||
+    body === "ماهوراغا ايقاف" ||
+    body === "ماهوراغا إيقاف"
+  ) {
+    if (!isAdmin(senderID)) return;
+    const cmd = commands.get("ماهوراغا");
+    if (cmd)
+      cmd
+        .execute(api, event)
+        .catch((e) => console.error("[مستر] خطأ في ماهوراغا:", e.message || e));
+    return;
+  }
+
   if (body === "حذف كاتش") {
     if (!isAdmin(senderID)) return;
     const cmd = commands.get("حذف كاتش");
@@ -103,6 +117,11 @@ async function handleMessage(api, event) {
         .execute(api, event)
         .catch((e) => console.error("[مستر] خطأ في حذف كاتش:", e.message || e));
     return;
+  }
+
+  const mahoragaCmd = commands.get("ماهوراغا");
+  if (mahoragaCmd && mahoragaCmd.handleIncomingMessage) {
+    mahoragaCmd.handleIncomingMessage(api, event);
   }
 
   if (body.startsWith("رد ") || body === "رد قائمة") {

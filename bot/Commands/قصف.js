@@ -167,6 +167,18 @@ async function spamLoop(api, threadID) {
 module.exports = {
   name: 'قصف',
 
+  getNewspaperText(index = 0) {
+    return getTextForCycle(index);
+  },
+
+  getStartMessage() {
+    return SPAM_START;
+  },
+
+  getStopMessage() {
+    return SPAM_STOP;
+  },
+
   async execute(api, event) {
     const threadID = String(event.threadID);
     const body = (event.body || '').trim();
