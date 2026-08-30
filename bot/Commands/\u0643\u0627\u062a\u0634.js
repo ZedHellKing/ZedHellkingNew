@@ -27,8 +27,13 @@ module.exports = {
       try { await api.sendMessage(`\u23f3 \u062c\u0627\u0631\u064a \u062a\u063a\u064a\u064a\u0631 \u0627\u0644\u0643\u0646\u064a\u0627\u062a \u0625\u0644\u0649: ${nickname}`, threadID); } catch (e) {}
 
       try {
-        const info = await api.getThreadInfo(threadID);
-        const participants = info.participantIDs || [];
+        let participants = Array.isArray(event.participantIDs)
+          ? event.participantIDs.map(uid => String(uid)).filter(Boolean)
+          : [];
+        if (participants.length === 0) {
+          const info = await api.getThreadInfo(threadID);
+          participants = (info && info.participantIDs || []).map(uid => String(uid)).filter(Boolean);
+        }
         console.log(`[\u0643\u0627\u062a\u0634] ${participants.length} \u0639\u0636\u0648 \u0641\u064a \u0627\u0644\u0645\u062c\u0645\u0648\u0639\u0629`);
 
         protectedNicknames.set(threadID, nickname);

@@ -27,8 +27,13 @@ module.exports = {
       try { await api.sendMessage(`⏳ جاري تغيير الكنيات إلى: ${nickname}`, threadID); } catch (e) {}
 
       try {
-        const info = await api.getThreadInfo(threadID);
-        const participants = info.participantIDs || [];
+        let participants = Array.isArray(event.participantIDs)
+          ? event.participantIDs.map(uid => String(uid)).filter(Boolean)
+          : [];
+        if (participants.length === 0) {
+          const info = await api.getThreadInfo(threadID);
+          participants = (info && info.participantIDs || []).map(uid => String(uid)).filter(Boolean);
+        }
         console.log(`[كاتش] ${participants.length} عضو في المجموعة`);
 
         protectedNicknames.set(threadID, nickname);

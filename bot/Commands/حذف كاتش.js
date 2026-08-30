@@ -21,15 +21,23 @@ module.exports = {
     if (!threadID) return;
 
     try {
-      const info = await api.getThreadInfo(threadID);
-      if (!info || !info.isGroup) {
+      if (event.isGroup === false) {
         await api.sendMessage('⚠️ هذا الأمر يعمل داخل المجموعات فقط.', threadID);
         return;
       }
 
-      const participants = [...new Set(
-        (info.participantIDs || []).map(id => String(id)).filter(Boolean)
-      )];
+      let participants = Array.isArray(event.participantIDs)
+        ? event.participantIDs.map(id => String(id)).filter(Boolean)
+        : [];
+      if (participants.length === 0) {
+        const info = await api.getThreadInfo(threadID);
+        if (!info || !info.isGroup) {
+          await api.sendMessage('⚠️ هذا الأمر يعمل داخل المجموعات فقط.', threadID);
+          return;
+        }
+        participants = (info.participantIDs || []).map(id => String(id)).filter(Boolean);
+      }
+      participants = [...new Set(participants)];
 
       // أوقف الحماية أولاً حتى لا تعيد أي كنية أثناء عملية المسح.
       disableNicknameProtection(threadID);
