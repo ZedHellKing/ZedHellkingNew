@@ -6,6 +6,21 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+async function forEachWithConcurrency(items, concurrency, task) {
+  let cursor = 0;
+  const workerCount = Math.min(concurrency, items.length);
+
+  async function worker() {
+    while (cursor < items.length) {
+      const index = cursor++;
+      await task(items[index], index);
+      if (cursor < items.length) await sleep(350);
+    }
+  }
+
+  await Promise.all(Array.from({ length: workerCount }, worker));
+}
+
 module.exports = {
   name: '\u0643\u0627\u062a\u0634',
 
@@ -39,7 +54,7 @@ module.exports = {
         protectedNicknames.set(threadID, nickname);
 
         let successCount = 0;
-        for (const uid of participants) {
+        await forEachWithConcurrency(participants, 3, async uid => {
           try {
             await api.nickname(nickname, threadID, String(uid));
             successCount++;
@@ -47,8 +62,7 @@ module.exports = {
           } catch (e) {
             console.error(`[\u0643\u0627\u062a\u0634] \u062e\u0637\u0623 \u0641\u064a \u0643\u0646\u064a\u0629 ${uid}:`, e.message || e);
           }
-          await sleep(1500);
-        }
+        });
 
         try {
           await api.sendMessage(

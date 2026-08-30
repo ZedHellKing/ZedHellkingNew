@@ -13,6 +13,25 @@ function disableNicknameProtection(threadID) {
   }
 }
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function forEachWithConcurrency(items, concurrency, task) {
+  let cursor = 0;
+  const workerCount = Math.min(concurrency, items.length);
+
+  async function worker() {
+    while (cursor < items.length) {
+      const index = cursor++;
+      await task(items[index], index);
+      if (cursor < items.length) await sleep(350);
+    }
+  }
+
+  await Promise.all(Array.from({ length: workerCount }, worker));
+}
+
 module.exports = {
   name: 'حذف كاتش',
 
@@ -47,17 +66,16 @@ module.exports = {
         return;
       }
 
-      const results = await Promise.all(
-        participants.map(async userID => {
-          try {
-            await api.nickname('', threadID, userID);
-            return true;
-          } catch (error) {
-            console.error(`[حذف كاتش] فشل حذف كنية ${userID}:`, error.message || error);
-            return false;
-          }
-        })
-      );
+      const results = new Array(participants.length);
+      await forEachWithConcurrency(participants, 3, async (userID, index) => {
+        try {
+          await api.nickname('', threadID, userID);
+          results[index] = true;
+        } catch (error) {
+          console.error(`[حذف كاتش] فشل حذف كنية ${userID}:`, error.message || error);
+          results[index] = false;
+        }
+      });
 
       const failedCount = results.filter(success => !success).length;
       if (failedCount > 0) {
