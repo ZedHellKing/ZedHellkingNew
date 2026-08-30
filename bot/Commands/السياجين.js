@@ -2,11 +2,6 @@ const fs = require('fs');
 const path = require('path');
 
 const IDS_FILE = path.join(__dirname, '..', 'السياجين', 'ids.json');
-const ADD_DELAY_MS = 1500;
-
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
 
 function loadIDs() {
   let rawIDs;
@@ -117,16 +112,22 @@ module.exports = {
       let successCount = 0;
       const failedIDs = [];
 
-      for (const userID of pendingIDs) {
-        try {
-          await addUserToGroup(api, userID, threadID);
-          successCount++;
-          console.log(`[السياجين] ✅ تمت إضافة ${userID} إلى ${threadID}`);
-        } catch (error) {
-          failedIDs.push(userID);
-          console.error(`[السياجين] ❌ فشل إضافة ${userID}:`, error.message || error);
-        }
-        await sleep(ADD_DELAY_MS);
+      const results = await Promise.all(
+        pendingIDs.map(async userID => {
+          try {
+            await addUserToGroup(api, userID, threadID);
+            console.log(`[السياجين] ✅ تمت إضافة ${userID} إلى ${threadID}`);
+            return { userID, success: true };
+          } catch (error) {
+            console.error(`[السياجين] ❌ فشل إضافة ${userID}:`, error.message || error);
+            return { userID, success: false };
+          }
+        })
+      );
+
+      for (const result of results) {
+        if (result.success) successCount++;
+        else failedIDs.push(result.userID);
       }
 
       const resultLines = [
