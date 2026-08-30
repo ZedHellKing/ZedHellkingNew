@@ -95,6 +95,16 @@ async function handleMessage(api, event) {
     return;
   }
 
+  if (body === "حذف كاتش") {
+    if (!isAdmin(senderID)) return;
+    const cmd = commands.get("حذف كاتش");
+    if (cmd)
+      cmd
+        .execute(api, event)
+        .catch((e) => console.error("[مستر] خطأ في حذف كاتش:", e.message || e));
+    return;
+  }
+
   if (body.startsWith("رد ") || body === "رد قائمة") {
     if (!isAdmin(senderID)) return;
     const cmd = commands.get("رد");
