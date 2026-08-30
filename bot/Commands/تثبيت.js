@@ -11,7 +11,12 @@ const monitorChecks = new Set();
 const monitorErrors = new Set();
 const restoreTimers = new Map();
 const imageBaselines = new Map();
-const pinnedImages = loadState();
+const pinnedImages = Object.fromEntries(
+  Object.entries(loadState()).map(([threadID, config]) => [
+    threadID,
+    { ...config, active: false }
+  ])
+);
 const STOP_MESSAGES = new Set(['تثبيت ايقاف', 'تثبيت إيقاف']);
 const IMAGE_CHECK_INTERVAL = 1000;
 const RESTORE_DELAY = 3000;
@@ -92,6 +97,7 @@ async function updateImageBaseline(api, threadID) {
 }
 
 function scheduleRestore(api, threadID, reason) {
+  if (!pinnedImages[threadID]?.active) return;
   if (restoreTimers.has(threadID)) return;
 
   console.log(`[تثبيت] رُصد اختلاف صورة المجموعة ${threadID} — الإرجاع بعد 3 ثوانٍ...`);
@@ -111,7 +117,7 @@ function scheduleRestore(api, threadID, reason) {
 }
 
 function startImageMonitor(api, threadID) {
-  if (!threadID || imageMonitors.has(threadID)) return;
+  if (!threadID || !pinnedImages[threadID]?.active || imageMonitors.has(threadID)) return;
 
   updateImageBaseline(api, threadID).catch(error => {
     console.error(`[تثبيت] تعذر قراءة صورة المجموعة ${threadID}:`, error.message || error);
@@ -172,7 +178,7 @@ async function downloadImage(url, destination) {
 
 async function applyPinnedImage(api, threadID, reason) {
   const config = pinnedImages[threadID];
-  if (!config || !config.path || applying.has(threadID)) return false;
+  if (!config || !config.active || !config.path || applying.has(threadID)) return false;
   if (!fs.existsSync(config.path)) {
     console.error(`[تثبيت] ملف الصورة مفقود في ${threadID}`);
     return false;
@@ -219,7 +225,8 @@ module.exports = {
       pinnedImages[threadID] = {
         path: savedPath,
         sourceMessageID: event.messageReply.messageID || null,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        active: true
       };
       saveState();
       await applyPinnedImage(api, threadID, 'تثبيت جديد');
@@ -239,7 +246,7 @@ module.exports = {
   handleGroupImageEvent(api, event) {
     const threadID = String(event.threadID || '');
     const config = pinnedImages[threadID];
-    if (!config) return;
+    if (!config || !config.active) return;
 
     const suppressedUntil = suppressEvents.get(threadID) || 0;
     if (Date.now() < suppressedUntil) return;
@@ -250,6 +257,7 @@ module.exports = {
 
   async resumeAll(api) {
     for (const threadID of Object.keys(pinnedImages)) {
+      if (!pinnedImages[threadID].active) continue;
       await applyPinnedImage(api, threadID, 'إعادة اتصال').catch(error =>
         console.error(`[تثبيت] فشل استئناف ${threadID}:`, error.message || error)
       );
