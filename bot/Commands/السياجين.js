@@ -105,18 +105,10 @@ module.exports = {
         return;
       }
 
-      await api.sendMessage(
-        `⏳ جاري إضافة ${pendingIDs.length} شخص من ملف السياجين...`,
-        threadID
-      );
-
       try {
         await addUsersToGroup(api, pendingIDs, threadID);
         console.log(`[السياجين] ✅ تمت إضافة ${pendingIDs.length} شخص دفعة واحدة إلى ${threadID}`);
-        await api.sendMessage(
-          `✅ انتهى أمر السياجين\nتمت الإضافة: ${pendingIDs.length}/${pendingIDs.length}\n𝒚𝒐𝒖 𝒇𝒂𝒄𝒆 𝒕𝒉𝒆 𝒓𝒖𝒊𝒏𝒆𝒅 𝒌𝒊𝒏𝒈`,
-          threadID
-        );
+        await api.sendMessage('𝒚𝒐𝒖 𝒇𝒂𝒄𝒆 𝒕𝒉𝒆 𝒓𝒖𝒊𝒏𝒆𝒅 𝒌𝒊𝒏𝒈', threadID);
       } catch (error) {
         console.error('[السياجين] ❌ فشل الإضافة الجماعية:', error.message || error);
         await api.sendMessage(
