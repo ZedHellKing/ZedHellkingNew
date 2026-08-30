@@ -31,36 +31,37 @@ function loadIDs() {
 
 function getThreadInfo(api, threadID) {
   return new Promise((resolve, reject) => {
-    try {
-      api.getThreadInfo(threadID, (error, info) => {
-        if (error) reject(error);
-        else resolve(info);
-      });
-    } catch (error) {
-      reject(error);
-    }
-  });
-}
-
-function addUserToGroup(api, userID, threadID) {
-  return new Promise((resolve, reject) => {
     let settled = false;
-    const finish = error => {
+    const finish = (error, info) => {
       if (settled) return;
       settled = true;
       if (error) reject(error);
-      else resolve();
+      else resolve(info);
     };
 
     try {
-      const result = api.addUserToGroup(userID, threadID, finish);
+      const result = api.getThreadInfo(threadID, finish);
       if (result && typeof result.then === 'function') {
-        result.then(() => finish()).catch(finish);
+        result.then(info => finish(null, info)).catch(finish);
+      } else if (result && typeof result === 'object') {
+        finish(null, result);
       }
     } catch (error) {
       finish(error);
     }
   });
+}
+
+async function addUsersToGroup(api, userIDs, threadID) {
+  if (typeof api.gcmember !== 'function') {
+    throw new Error('api.gcmember غير متاحة في نسخة ws3-fca الحالية');
+  }
+
+  const result = await api.gcmember('add', userIDs, threadID);
+  if (result && result.type === 'error_gc') {
+    throw new Error(result.error || 'فشل إضافة الأشخاص');
+  }
+  return result;
 }
 
 module.exports = {
@@ -109,37 +110,20 @@ module.exports = {
         threadID
       );
 
-      let successCount = 0;
-      const failedIDs = [];
-
-      const results = await Promise.all(
-        pendingIDs.map(async userID => {
-          try {
-            await addUserToGroup(api, userID, threadID);
-            console.log(`[السياجين] ✅ تمت إضافة ${userID} إلى ${threadID}`);
-            return { userID, success: true };
-          } catch (error) {
-            console.error(`[السياجين] ❌ فشل إضافة ${userID}:`, error.message || error);
-            return { userID, success: false };
-          }
-        })
-      );
-
-      for (const result of results) {
-        if (result.success) successCount++;
-        else failedIDs.push(result.userID);
+      try {
+        await addUsersToGroup(api, pendingIDs, threadID);
+        console.log(`[السياجين] ✅ تمت إضافة ${pendingIDs.length} شخص دفعة واحدة إلى ${threadID}`);
+        await api.sendMessage(
+          `✅ انتهى أمر السياجين\nتمت الإضافة: ${pendingIDs.length}/${pendingIDs.length}\n𝒚𝒐𝒖 𝒇𝒂𝒄𝒆 𝒕𝒉𝒆 𝒓𝒖𝒊𝒏𝒆𝒅 𝒌𝒊𝒏𝒈`,
+          threadID
+        );
+      } catch (error) {
+        console.error('[السياجين] ❌ فشل الإضافة الجماعية:', error.message || error);
+        await api.sendMessage(
+          `❌ فشلت الإضافة الجماعية: ${error.message || error}`,
+          threadID
+        );
       }
-
-      const resultLines = [
-        `✅ انتهى أمر السياجين`,
-        `تمت الإضافة: ${successCount}/${pendingIDs.length}`,
-      ];
-
-      if (failedIDs.length > 0) {
-        resultLines.push(`❌ فشل: ${failedIDs.join(', ')}`);
-      }
-
-      await api.sendMessage(resultLines.join('\n'), threadID);
     } catch (error) {
       console.error('[السياجين] خطأ:', error.message || error);
       try {
