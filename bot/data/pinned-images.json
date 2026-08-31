@@ -4,5 +4,23 @@
     "sourceMessageID": "mid.$gAAbEjxmp1sWmhZ6_nmgVFlqhNSmQ",
     "updatedAt": "2026-08-30T20:29:12.992Z",
     "active": false
+  },
+  "1545536780057283": {
+    "path": "/home/runner/workspace/bot/data/pinned-images/1545536780057283.jpg",
+    "sourceMessageID": "mid.$gAAV9qFLDOsOmhm86VmgVSnuON9aZ",
+    "updatedAt": "2026-08-31T00:13:33.784Z",
+    "active": false
+  },
+  "pin-event-test": {
+    "path": "/home/runner/workspace/bot/data/pinned-images/pin-event-test.jpg",
+    "sourceMessageID": "m1",
+    "updatedAt": "2026-08-31T00:15:46.396Z",
+    "active": false
+  },
+  "pin-event-test-2": {
+    "path": "/home/runner/workspace/bot/data/pinned-images/pin-event-test-2.jpg",
+    "sourceMessageID": "m1",
+    "updatedAt": "2026-08-31T00:16:12.826Z",
+    "active": true
   }
 }

@@ -6,7 +6,11 @@ const dataDir = path.join(__dirname, '..', 'data', 'pinned-images');
 const statePath = path.join(__dirname, '..', 'data', 'pinned-images.json');
 const applying = new Set();
 const suppressEvents = new Map();
+const imageMonitors = new Map();
+const monitorChecks = new Set();
+const monitorErrors = new Set();
 const restoreTimers = new Map();
+const imageBaselines = new Map();
 const pinnedImages = Object.fromEntries(
   Object.entries(loadState()).map(([threadID, config]) => [
     threadID,
@@ -14,6 +18,7 @@ const pinnedImages = Object.fromEntries(
   ])
 );
 const STOP_MESSAGES = new Set(['تثبيت ايقاف', 'تثبيت إيقاف']);
+const IMAGE_CHECK_INTERVAL = 3000;
 const RESTORE_DELAY = 3000;
 
 function loadState() {
@@ -65,9 +70,30 @@ function stopPin(threadID) {
 }
 
 function stopImageMonitor(threadID) {
+  const monitor = imageMonitors.get(threadID);
+  if (monitor) clearInterval(monitor);
+  imageMonitors.delete(threadID);
+  monitorChecks.delete(threadID);
+  monitorErrors.delete(threadID);
+  imageBaselines.delete(threadID);
+
   const restoreTimer = restoreTimers.get(threadID);
   if (restoreTimer) clearTimeout(restoreTimer);
   restoreTimers.delete(threadID);
+}
+
+async function readCurrentImage(api, threadID) {
+  if (!api || typeof api.getThreadInfo !== 'function') {
+    throw new Error('api.getThreadInfo غير متاحة');
+  }
+  const info = await api.getThreadInfo(threadID);
+  return info && info.imageSrc ? String(info.imageSrc) : null;
+}
+
+async function updateImageBaseline(api, threadID) {
+  const image = await readCurrentImage(api, threadID);
+  imageBaselines.set(threadID, image);
+  return image;
 }
 
 function scheduleRestore(api, threadID, reason) {
@@ -79,6 +105,10 @@ function scheduleRestore(api, threadID, reason) {
     try {
       if (!pinnedImages[threadID]) return;
       await applyPinnedImage(api, threadID, reason);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      if (pinnedImages[threadID]) {
+        await updateImageBaseline(api, threadID);
+      }
     } catch (error) {
       console.error(`[تثبيت] فشل إرجاع الصورة:`, error.message || error);
     } finally {
@@ -89,9 +119,40 @@ function scheduleRestore(api, threadID, reason) {
 }
 
 function startImageMonitor(api, threadID) {
-  // حماية الصورة تعتمد على أحداث تغيير صورة المجموعة.
-  // لا نستخدم الفحص الدوري عبر getThreadInfo لأن GraphQL قد يفشل أو يعلّق.
-  if (!threadID || !pinnedImages[threadID]?.active) return;
+  if (!threadID || !pinnedImages[threadID]?.active || imageMonitors.has(threadID)) return;
+
+  updateImageBaseline(api, threadID).catch(error => {
+    console.error(`[تثبيت] تعذر قراءة صورة المجموعة ${threadID}:`, error.message || error);
+  });
+
+  const monitor = setInterval(async () => {
+    if (!pinnedImages[threadID]) {
+      stopImageMonitor(threadID);
+      return;
+    }
+    if (monitorChecks.has(threadID) || applying.has(threadID)) return;
+
+    monitorChecks.add(threadID);
+    try {
+      const currentImage = await readCurrentImage(api, threadID);
+      const baseline = imageBaselines.get(threadID);
+      if (baseline === undefined) {
+        imageBaselines.set(threadID, currentImage);
+      } else if (currentImage !== baseline) {
+        scheduleRestore(api, threadID, 'تغيير مرصود');
+      }
+      monitorErrors.delete(threadID);
+    } catch (error) {
+      if (!monitorErrors.has(threadID)) {
+        console.error(`[تثبيت] تعذر فحص صورة المجموعة ${threadID}:`, error.message || error);
+        monitorErrors.add(threadID);
+      }
+    } finally {
+      monitorChecks.delete(threadID);
+    }
+  }, IMAGE_CHECK_INTERVAL);
+
+  imageMonitors.set(threadID, monitor);
 }
 
 async function downloadImage(url, destination) {
