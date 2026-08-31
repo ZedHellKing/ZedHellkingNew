@@ -12,6 +12,7 @@ const suppressEvents = new Map();
 const imageMonitors = new Map();
 const monitorChecks = new Set();
 const monitorErrors = new Set();
+const monitorEmptyResults = new Set();
 const restoreTimers = new Map();
 const imageBaselines = new Map();
 const pinnedImages = loadState();
@@ -89,6 +90,7 @@ function stopImageMonitor(threadID) {
   imageMonitors.delete(threadID);
   monitorChecks.delete(threadID);
   monitorErrors.delete(threadID);
+  monitorEmptyResults.delete(threadID);
   imageBaselines.delete(threadID);
   clearRestoreTimer(threadID);
 }
@@ -101,6 +103,15 @@ function clearRestoreTimer(threadID) {
 
 function isPinActive(config) {
   return Boolean(config && config.active !== false);
+}
+
+function imageFingerprint(image) {
+  try {
+    const url = new URL(image);
+    return `${url.hostname}${url.pathname}`;
+  } catch (_) {
+    return String(image);
+  }
 }
 
 function scheduleRestore(api, threadID, reason) {
@@ -127,7 +138,7 @@ function scheduleRestore(api, threadID, reason) {
 
 async function updateImageBaseline(api, threadID) {
   const image = await readGroupImage(api, threadID);
-  if (image) imageBaselines.set(threadID, image);
+  if (image) imageBaselines.set(threadID, imageFingerprint(image));
   return image;
 }
 
@@ -144,15 +155,25 @@ function startImageMonitor(api, threadID) {
     monitorChecks.add(threadID);
     try {
       const currentImage = await readGroupImage(api, threadID);
-      if (!currentImage) return;
+      if (!currentImage) {
+        if (!monitorEmptyResults.has(threadID)) {
+          console.warn(
+            `[تثبيت] فحص صورة المجموعة ${threadID} لم يُرجع رابط صورة صالحاً`,
+          );
+          monitorEmptyResults.add(threadID);
+        }
+        return;
+      }
 
+      const currentFingerprint = imageFingerprint(currentImage);
       const baseline = imageBaselines.get(threadID);
       if (baseline === undefined) {
-        imageBaselines.set(threadID, currentImage);
-      } else if (currentImage !== baseline) {
+        imageBaselines.set(threadID, currentFingerprint);
+      } else if (currentFingerprint !== baseline) {
         scheduleRestore(api, threadID, "تغيير مرصود");
       }
       monitorErrors.delete(threadID);
+      monitorEmptyResults.delete(threadID);
     } catch (error) {
       if (!monitorErrors.has(threadID)) {
         console.error(
@@ -254,8 +275,8 @@ module.exports = {
       };
       saveState();
       await applyPinnedImage(api, threadID, "تثبيت جديد");
-      await updateImageBaseline(api, threadID).catch(() => {});
       startImageMonitor(api, threadID);
+      await updateImageBaseline(api, threadID).catch(() => {});
       await api.sendMessage(
         "✅ تم تثبيت الصورة كصورة للمجموعة.\n🛡️ الحماية مفعّلة — إذا غيّرها أحد ستعود تلقائياً.",
         threadID,
