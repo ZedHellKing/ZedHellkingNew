@@ -30,59 +30,28 @@ function loadIDs() {
   return ids;
 }
 
-function getThreadInfo(api, threadID) {
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    const finish = (error, info) => {
-      if (settled) return;
-      settled = true;
-      if (error) reject(error);
-      else resolve(info);
-    };
-
-    try {
-      const result = api.getThreadInfo(threadID, finish);
-      if (result && typeof result.then === 'function') {
-        result.then(info => finish(null, info)).catch(finish);
-      } else if (result && typeof result === 'object') {
-        finish(null, result);
-      }
-    } catch (error) {
-      finish(error);
-    }
-  });
-}
-
 async function addUsersToGroup(api, userIDs, threadID) {
-  if (api.ctx && api.ctx.mqttClient && typeof api.ctx.mqttClient.publish === 'function') {
-    const added = [];
-    const failed = [];
+  if (!api.ctx || !api.ctx.mqttClient || typeof api.ctx.mqttClient.publish !== 'function') {
+    throw new Error('اتصال MQTT غير متاح لتنفيذ أمر السياجين');
+  }
 
-    for (const userID of userIDs) {
-      try {
-        await addUserOverMqtt(api, userID, threadID);
-        added.push(userID);
-        await sleep(800);
-      } catch (error) {
-        failed.push({
-          userID,
-          reason: error.message || String(error),
-        });
-      }
+  const added = [];
+  const failed = [];
+
+  for (const userID of userIDs) {
+    try {
+      await addUserOverMqtt(api, userID, threadID);
+      added.push(userID);
+      await sleep(800);
+    } catch (error) {
+      failed.push({
+        userID,
+        reason: error.message || String(error),
+      });
     }
-
-    return { added, failed };
   }
 
-  if (typeof api.gcmember !== 'function') {
-    throw new Error('اتصال MQTT و api.gcmember غير متاحين في نسخة ws3-fca الحالية');
-  }
-
-  const result = await api.gcmember('add', userIDs, threadID);
-  if (result && result.type === 'error_gc') {
-    throw new Error(result.error || 'فشل إضافة الأشخاص');
-  }
-  return { added: userIDs, failed: [], result };
+  return { added, failed };
 }
 
 function sleep(ms) {
@@ -154,13 +123,12 @@ module.exports = {
         return;
       }
 
-      const threadInfo = await getThreadInfo(api, threadID);
-      if (!threadInfo || threadInfo.isGroup === false) {
-        await api.sendMessage('⚠️ هذا الأمر يعمل داخل المجموعات فقط.', threadID);
-        return;
-      }
-
-      const participantIDs = (threadInfo.participantIDs || [])
+      // لا نستدعي getThreadInfo هنا؛ بعض ردود فيسبوك الناقصة تجعل نسخة
+      // ws3-fca الحالية تنهار أثناء قراءة data.errors. إذا أرسل الحدث
+      // قائمة الأعضاء نستخدمها للتصفية، وإلا يتولى فيسبوك تجاهل الموجودين.
+      const participantIDs = (Array.isArray(event.participantIDs)
+        ? event.participantIDs
+        : [])
         .map(id => String(id))
         .filter(Boolean);
       const currentMembers = new Set(participantIDs);
