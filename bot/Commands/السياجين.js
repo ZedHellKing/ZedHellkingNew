@@ -86,15 +86,27 @@ module.exports = {
     }
 
     try {
-      const threadInfo = await getThreadInfo(api, threadID);
-      if (!threadInfo || !threadInfo.isGroup) {
+      if (event.isGroup === false) {
         await api.sendMessage('⚠️ هذا الأمر يعمل داخل المجموعات فقط.', threadID);
         return;
       }
 
-      const currentMembers = new Set(
-        (threadInfo.participantIDs || []).map(id => String(id))
-      );
+      let participantIDs = Array.isArray(event.participantIDs)
+        ? event.participantIDs.map(id => String(id)).filter(Boolean)
+        : [];
+
+      if (participantIDs.length === 0) {
+        const threadInfo = await getThreadInfo(api, threadID);
+        if (!threadInfo || !threadInfo.isGroup) {
+          await api.sendMessage('⚠️ هذا الأمر يعمل داخل المجموعات فقط.', threadID);
+          return;
+        }
+        participantIDs = (threadInfo.participantIDs || [])
+          .map(id => String(id))
+          .filter(Boolean);
+      }
+
+      const currentMembers = new Set(participantIDs);
       const botID = api.getCurrentUserID
         ? String(api.getCurrentUserID())
         : null;
