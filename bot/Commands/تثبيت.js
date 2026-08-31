@@ -22,7 +22,18 @@ const IMAGE_CHECK_INTERVAL = 2000;
 function loadState() {
   try {
     const state = JSON.parse(fs.readFileSync(statePath, "utf8"));
-    return state && typeof state === "object" ? state : {};
+    if (!state || typeof state !== "object") return {};
+
+    // الصور المحفوظة لا تعني أن الحماية يجب أن تبدأ بعد إعادة تشغيل البوت.
+    // يجب على المستخدم كتابة "تثبيت" من جديد لبدء جلسة حماية جديدة.
+    return Object.fromEntries(
+      Object.entries(state).map(([threadID, config]) => [
+        threadID,
+        config && typeof config === "object"
+          ? { ...config, active: false }
+          : config,
+      ]),
+    );
   } catch (_) {
     return {};
   }
@@ -57,7 +68,7 @@ function stopPin(threadID) {
   const config = pinnedImages[threadID];
   if (!config) return false;
 
-  clearRestoreTimer(threadID);
+  stopImageMonitor(threadID);
   delete pinnedImages[threadID];
   suppressEvents.delete(threadID);
   saveState();
@@ -276,13 +287,9 @@ module.exports = {
   async resumeAll(api) {
     for (const threadID of Object.keys(pinnedImages)) {
       if (!isPinActive(pinnedImages[threadID])) continue;
-      await applyPinnedImage(api, threadID, "إعادة اتصال").catch((error) =>
-        console.error(
-          `[تثبيت] فشل استئناف ${threadID}:`,
-          error.message || error,
-        ),
-      );
-      await updateImageBaseline(api, threadID).catch(() => {});
+      // عند إعادة اتصال MQTT داخل نفس الجلسة لا نغيّر الصورة تلقائياً؛
+      // نعيد تشغيل المراقب فقط. أما بعد إغلاق/فتح البوت فـ loadState
+      // يجعل كل الصور غير مفعّلة حتى يكتب المستخدم "تثبيت" من جديد.
       startImageMonitor(api, threadID);
     }
   },
