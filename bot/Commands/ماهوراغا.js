@@ -10,24 +10,23 @@ function clearPendingTimer(state) {
   }
 }
 
-function isControlMessage(body) {
-  return (
-    body === 'ماهوراغا' ||
-    body === 'ماهوراغا ايقاف' ||
-    body === 'ماهوراغا إيقاف'
-  );
-}
-
 function scheduleNewspaper(api, event) {
   const threadID = String(event.threadID || '');
   const state = activeGroups.get(threadID);
   if (!threadID || !state) return;
 
   clearPendingTimer(state);
+  const messageGeneration = ++state.messageGeneration;
 
   const timer = setTimeout(async () => {
     const currentState = activeGroups.get(threadID);
-    if (!currentState || currentState.timer !== timer) return;
+    if (
+      !currentState ||
+      currentState.timer !== timer ||
+      currentState.messageGeneration !== messageGeneration
+    ) {
+      return;
+    }
 
     currentState.timer = null;
     const newspaperNumber = currentState.cycleIndex++;
@@ -79,17 +78,17 @@ module.exports = {
       return;
     }
 
-    activeGroups.set(threadID, { timer: null, cycleIndex: 0 });
-    try {
-      await api.sendMessage(qasf.getStartMessage(), threadID);
-    } catch (e) {}
-    console.log(`[ماهوراغا] ▶️ تم التفعيل في ${threadID} — الجريدة بعد 4 ثوانٍ من آخر رسالة`);
+    activeGroups.set(threadID, {
+      timer: null,
+      cycleIndex: 0,
+      messageGeneration: 0,
+    });
+    console.log(`[ماهوراغا] ▶️ تم التفعيل في ${threadID} — تنتظر رسالة من المجموعة`);
   },
 
   handleIncomingMessage(api, event) {
     const threadID = String(event.threadID || '');
-    const body = (event.body || '').trim();
-    if (!threadID || event.isGroup === false || isControlMessage(body)) return;
+    if (!threadID || event.isGroup === false) return;
 
     const botID = api.getCurrentUserID ? api.getCurrentUserID() : null;
     if (botID && String(event.senderID || '') === String(botID)) return;
