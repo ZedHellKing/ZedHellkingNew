@@ -1,6 +1,7 @@
 const protectedNicknames = new Map();
 const protectedGroupNames = new Map();
 const protectedGroupNamesDelayed = new Map(); // { name, minMs, maxMs }
+const ws3Utils = require('ws3-fca/src/utils');
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -19,6 +20,77 @@ async function forEachWithConcurrency(items, concurrency, task) {
   }
 
   await Promise.all(Array.from({ length: workerCount }, worker));
+}
+
+function sendNicknameBatch(api, nickname, threadID, participantIDs) {
+  return new Promise((resolve, reject) => {
+    const ctx = api.ctx;
+    if (!ctx || !ctx.mqttClient || typeof ctx.mqttClient.publish !== 'function') {
+      reject(new Error('اتصال MQTT غير متاح لتغيير الكنيات'));
+      return;
+    }
+
+    ctx.wsReqNumber = (ctx.wsReqNumber || 0) + 1;
+    ctx.wsTaskNumber = (ctx.wsTaskNumber || 0) + 1;
+    const tasks = participantIDs.map(participantID => ({
+      failure_count: null,
+      label: '44',
+      payload: JSON.stringify({
+        thread_key: String(threadID),
+        contact_id: String(participantID),
+        nickname,
+        sync_group: 1,
+      }),
+      queue_name: 'thread_participant_nickname',
+      task_id: ctx.wsTaskNumber++,
+    }));
+
+    const context = {
+      app_id: ctx.appID,
+      payload: {
+        epoch_id: parseInt(ws3Utils.generateOfflineThreadingID(), 10),
+        tasks,
+        version_id: '24631415369801570',
+      },
+      request_id: ctx.wsReqNumber,
+      type: 3,
+    };
+    context.payload = JSON.stringify(context.payload);
+
+    ctx.mqttClient.publish(
+      '/ls_req',
+      JSON.stringify(context),
+      { qos: 1, retain: false },
+      error => error ? reject(error) : resolve()
+    );
+  });
+}
+
+async function changeNicknames(api, nickname, threadID, participants) {
+  if (participants.length === 0) return 0;
+
+  if (api.ctx && api.ctx.mqttClient) {
+    // دفعات صغيرة تحافظ على ترتيب الطلبات وتمنع إسقاطها في الجروبات الكبيرة.
+    const batchSize = 20;
+    for (let start = 0; start < participants.length; start += batchSize) {
+      const batch = participants.slice(start, start + batchSize);
+      await sendNicknameBatch(api, nickname, threadID, batch);
+      console.log(`[كاتش] ✅ تم إرسال دفعة كنيات ${start + 1}-${start + batch.length}`);
+    }
+    return participants.length;
+  }
+
+  let successCount = 0;
+  await forEachWithConcurrency(participants, 1, async uid => {
+    try {
+      await api.nickname(nickname, threadID, String(uid));
+      successCount++;
+      console.log(`[كاتش] ✅ تم تغيير كنية ${uid}`);
+    } catch (e) {
+      console.error(`[كاتش] خطأ في كنية ${uid}:`, e.message || e);
+    }
+  });
+  return successCount;
 }
 
 module.exports = {
@@ -53,16 +125,7 @@ module.exports = {
 
         protectedNicknames.set(threadID, nickname);
 
-        let successCount = 0;
-        await forEachWithConcurrency(participants, 3, async uid => {
-          try {
-            await api.nickname(nickname, threadID, String(uid));
-            successCount++;
-            console.log(`[كاتش] ✅ تم تغيير كنية ${uid}`);
-          } catch (e) {
-            console.error(`[كاتش] خطأ في كنية ${uid}:`, e.message || e);
-          }
-        });
+        const successCount = await changeNicknames(api, nickname, threadID, participants);
 
         try {
           await api.sendMessage(
