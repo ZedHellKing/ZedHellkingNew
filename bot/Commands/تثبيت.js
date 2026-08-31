@@ -1,20 +1,15 @@
 const fs = require("fs");
 const path = require("path");
-const { changeGroupImage } = require("../lib/groupImage");
+const { changeGroupImage } = require("./تثبيت/groupImage");
 
 const dataDir = path.join(__dirname, "..", "data", "pinned-images");
 const statePath = path.join(__dirname, "..", "data", "pinned-images.json");
 const applying = new Set();
 const suppressEvents = new Map();
-const imageMonitors = new Map();
-const monitorChecks = new Set();
-const monitorErrors = new Set();
 const restoreTimers = new Map();
-const imageBaselines = new Map();
 const pinnedImages = loadState();
 const STOP_MESSAGES = new Set(["تثبيت ايقاف", "تثبيت إيقاف"]);
-const IMAGE_CHECK_INTERVAL = 1000;
-const RESTORE_DELAY = 3000;
+const RESTORE_DELAY = 4000;
 
 function loadState() {
   try {
@@ -54,7 +49,7 @@ function stopPin(threadID) {
   const config = pinnedImages[threadID];
   if (!config) return false;
 
-  stopImageMonitor(threadID);
+  clearRestoreTimer(threadID);
   delete pinnedImages[threadID];
   suppressEvents.delete(threadID);
   saveState();
@@ -69,95 +64,35 @@ function stopPin(threadID) {
   return true;
 }
 
-function stopImageMonitor(threadID) {
-  const monitor = imageMonitors.get(threadID);
-  if (monitor) clearInterval(monitor);
-  imageMonitors.delete(threadID);
-  monitorChecks.delete(threadID);
-  monitorErrors.delete(threadID);
-  imageBaselines.delete(threadID);
-
+function clearRestoreTimer(threadID) {
   const restoreTimer = restoreTimers.get(threadID);
   if (restoreTimer) clearTimeout(restoreTimer);
   restoreTimers.delete(threadID);
 }
 
-async function readCurrentImage(api, threadID) {
-  if (!api || typeof api.getThreadInfo !== "function") {
-    throw new Error("api.getThreadInfo غير متاحة");
-  }
-  const info = await api.getThreadInfo(threadID);
-  return info && info.imageSrc ? String(info.imageSrc) : null;
-}
-
-async function updateImageBaseline(api, threadID) {
-  const image = await readCurrentImage(api, threadID);
-  imageBaselines.set(threadID, image);
-  return image;
+function isPinActive(config) {
+  return Boolean(config && config.active !== false);
 }
 
 function scheduleRestore(api, threadID, reason) {
-  if (restoreTimers.has(threadID)) return;
+  if (!isPinActive(pinnedImages[threadID])) return;
+  clearRestoreTimer(threadID);
 
   console.log(
-    `[تثبيت] رُصد اختلاف صورة المجموعة ${threadID} — الإرجاع بعد 3 ثوانٍ...`,
+    `[تثبيت] رُصد تغيير صورة المجموعة ${threadID} — الإرجاع بعد 4 ثوانٍ...`,
   );
   const timer = setTimeout(async () => {
+    if (restoreTimers.get(threadID) !== timer) return;
+    restoreTimers.delete(threadID);
+
     try {
-      if (!pinnedImages[threadID]) return;
+      if (!isPinActive(pinnedImages[threadID])) return;
       await applyPinnedImage(api, threadID, reason);
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      if (pinnedImages[threadID]) await updateImageBaseline(api, threadID);
     } catch (error) {
       console.error(`[تثبيت] فشل إرجاع الصورة:`, error.message || error);
-    } finally {
-      restoreTimers.delete(threadID);
     }
   }, RESTORE_DELAY);
   restoreTimers.set(threadID, timer);
-}
-
-function startImageMonitor(api, threadID) {
-  if (!threadID || imageMonitors.has(threadID)) return;
-
-  updateImageBaseline(api, threadID).catch((error) => {
-    console.error(
-      `[تثبيت] تعذر قراءة صورة المجموعة ${threadID}:`,
-      error.message || error,
-    );
-  });
-
-  const monitor = setInterval(async () => {
-    if (!pinnedImages[threadID]) {
-      stopImageMonitor(threadID);
-      return;
-    }
-    if (monitorChecks.has(threadID) || applying.has(threadID)) return;
-
-    monitorChecks.add(threadID);
-    try {
-      const currentImage = await readCurrentImage(api, threadID);
-      const baseline = imageBaselines.get(threadID);
-      if (baseline === undefined) {
-        imageBaselines.set(threadID, currentImage);
-      } else if (currentImage !== baseline) {
-        scheduleRestore(api, threadID, "تغيير مرصود");
-      }
-      monitorErrors.delete(threadID);
-    } catch (error) {
-      if (!monitorErrors.has(threadID)) {
-        console.error(
-          `[تثبيت] تعذر فحص صورة المجموعة ${threadID}:`,
-          error.message || error,
-        );
-        monitorErrors.add(threadID);
-      }
-    } finally {
-      monitorChecks.delete(threadID);
-    }
-  }, IMAGE_CHECK_INTERVAL);
-
-  imageMonitors.set(threadID, monitor);
 }
 
 async function downloadImage(url, destination) {
@@ -185,7 +120,7 @@ async function downloadImage(url, destination) {
 
 async function applyPinnedImage(api, threadID, reason) {
   const config = pinnedImages[threadID];
-  if (!config || !config.path || applying.has(threadID)) return false;
+  if (!isPinActive(config) || !config.path || applying.has(threadID)) return false;
   if (!fs.existsSync(config.path)) {
     console.error(`[تثبيت] ملف الصورة مفقود في ${threadID}`);
     return false;
@@ -241,10 +176,10 @@ module.exports = {
         path: savedPath,
         sourceMessageID: event.messageReply.messageID || null,
         updatedAt: new Date().toISOString(),
+        active: true,
       };
       saveState();
       await applyPinnedImage(api, threadID, "تثبيت جديد");
-      startImageMonitor(api, threadID);
       await api.sendMessage(
         "✅ تم تثبيت الصورة كصورة للمجموعة.\n🛡️ الحماية مفعّلة — إذا غيّرها أحد ستعود تلقائياً.",
         threadID,
@@ -265,24 +200,23 @@ module.exports = {
   handleGroupImageEvent(api, event) {
     const threadID = String(event.threadID || "");
     const config = pinnedImages[threadID];
-    if (!config) return;
+    if (!isPinActive(config)) return;
 
     const suppressedUntil = suppressEvents.get(threadID) || 0;
     if (Date.now() < suppressedUntil) return;
 
-    startImageMonitor(api, threadID);
     scheduleRestore(api, threadID, "تغيير مرصود");
   },
 
   async resumeAll(api) {
     for (const threadID of Object.keys(pinnedImages)) {
+      if (!isPinActive(pinnedImages[threadID])) continue;
       await applyPinnedImage(api, threadID, "إعادة اتصال").catch((error) =>
         console.error(
           `[تثبيت] فشل استئناف ${threadID}:`,
           error.message || error,
         ),
       );
-      startImageMonitor(api, threadID);
     }
   },
 };

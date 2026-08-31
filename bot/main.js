@@ -198,15 +198,18 @@ function handleEvent(api, event) {
 
   // حماية صورة المجموعة — حدث تغيير صورة المجموعة
   const normalizedLogType = String(logType).toLowerCase();
+  const eventDetails = [
+    event.type,
+    event.logMessageType,
+    event.logMessageBody,
+    JSON.stringify(event.logMessageData || {}),
+  ]
+    .join(" ")
+    .toLowerCase();
   const isGroupImageEvent =
-    normalizedLogType.includes("image") ||
-    normalizedLogType.includes("photo") ||
-    normalizedLogType.includes("picture") ||
-    [
-      "change_thread_image",
-      "threadimagemessage",
-      "thread_image_message",
-    ].includes(normalizedLogType);
+    /image|photo|picture|change_thread_image|thread_image|threadimage/.test(
+      `${normalizedLogType} ${eventDetails}`,
+    );
   if (isGroupImageEvent && pinCmd && pinCmd.handleGroupImageEvent) {
     pinCmd.handleGroupImageEvent(api, event);
   }
