@@ -187,7 +187,9 @@ async function applyPinnedImage(api, threadID, reason) {
   }
 
   applying.add(threadID);
-  suppressEvents.set(threadID, Date.now() + 8000);
+  // تجاهل حدث الإرجاع الذاتي لفترة قصيرة فقط حتى لا نتجاهل تغييرًا حقيقيًا
+  // يحدث مباشرة بعد تفعيل الحماية.
+  suppressEvents.set(threadID, Date.now() + 2000);
   try {
     await changeGroupImage(api, config.path, threadID);
     console.log(`[تثبيت] ✅ أُعيدت صورة المجموعة ${threadID}${reason ? ` (${reason})` : ''}`);
