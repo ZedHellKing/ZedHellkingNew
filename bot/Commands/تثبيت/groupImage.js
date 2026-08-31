@@ -1,4 +1,5 @@
 const fs = require("fs");
+const ws3Utils = require("ws3-fca/src/utils");
 
 function parseFacebookResponse(response) {
   if (!response) return {};
@@ -20,6 +21,71 @@ function parseFacebookResponse(response) {
 
 function makeMessageID() {
   return `${Date.now()}${Math.floor(Math.random() * 1000000)}`;
+}
+
+function findImageURL(value, threadID, seen = new Set(), depth = 0) {
+  if (!value || typeof value !== "object" || depth > 10 || seen.has(value)) {
+    return null;
+  }
+  seen.add(value);
+
+  if (value.message_thread && typeof value.message_thread === "object") {
+    const thread = value.message_thread;
+    const threadKey = thread.thread_key || {};
+    const foundThreadID = String(
+      threadKey.thread_fbid || threadKey.other_user_id || "",
+    );
+    const imageURL = thread.image && thread.image.uri;
+    if (imageURL && (!foundThreadID || foundThreadID === String(threadID))) {
+      return String(imageURL);
+    }
+  }
+
+  if (
+    typeof value.image_src === "string" &&
+    (!value.thread_fbid || String(value.thread_fbid) === String(threadID))
+  ) {
+    return value.image_src;
+  }
+
+  for (const child of Object.values(value)) {
+    const result = findImageURL(child, threadID, seen, depth + 1);
+    if (result) return result;
+  }
+  return null;
+}
+
+async function readGroupImage(api, threadID) {
+  if (!api || !api.defaultFuncs || !api.ctx) {
+    throw new Error("جلسة فيسبوك غير جاهزة");
+  }
+
+  const form = {
+    queries: JSON.stringify({
+      o0: {
+        doc_id: "3449967031715030",
+        query_params: {
+          id: String(threadID),
+          message_limit: 0,
+          load_messages: false,
+          load_read_receipts: false,
+          before: null,
+        },
+      },
+    }),
+    batch_name: "MessengerGraphQLThreadFetcher",
+  };
+
+  const response = await api.defaultFuncs.post(
+    "https://www.facebook.com/api/graphqlbatch/",
+    api.ctx.jar,
+    form,
+    api.ctx,
+  );
+  const parsed = await ws3Utils.parseAndCheckLogin(api.ctx, api.defaultFuncs)(
+    response,
+  );
+  return findImageURL(parsed, threadID);
 }
 
 async function changeGroupImage(api, imagePath, threadID) {
@@ -99,4 +165,4 @@ async function changeGroupImage(api, imagePath, threadID) {
   return result;
 }
 
-module.exports = { changeGroupImage };
+module.exports = { changeGroupImage, readGroupImage };

@@ -1,15 +1,23 @@
 const fs = require("fs");
 const path = require("path");
-const { changeGroupImage } = require("./تثبيت/groupImage");
+const {
+  changeGroupImage,
+  readGroupImage,
+} = require("./تثبيت/groupImage");
 
 const dataDir = path.join(__dirname, "..", "data", "pinned-images");
 const statePath = path.join(__dirname, "..", "data", "pinned-images.json");
 const applying = new Set();
 const suppressEvents = new Map();
+const imageMonitors = new Map();
+const monitorChecks = new Set();
+const monitorErrors = new Set();
 const restoreTimers = new Map();
+const imageBaselines = new Map();
 const pinnedImages = loadState();
 const STOP_MESSAGES = new Set(["تثبيت ايقاف", "تثبيت إيقاف"]);
 const RESTORE_DELAY = 4000;
+const IMAGE_CHECK_INTERVAL = 2000;
 
 function loadState() {
   try {
@@ -64,6 +72,16 @@ function stopPin(threadID) {
   return true;
 }
 
+function stopImageMonitor(threadID) {
+  const monitor = imageMonitors.get(threadID);
+  if (monitor) clearInterval(monitor);
+  imageMonitors.delete(threadID);
+  monitorChecks.delete(threadID);
+  monitorErrors.delete(threadID);
+  imageBaselines.delete(threadID);
+  clearRestoreTimer(threadID);
+}
+
 function clearRestoreTimer(threadID) {
   const restoreTimer = restoreTimers.get(threadID);
   if (restoreTimer) clearTimeout(restoreTimer);
@@ -88,11 +106,56 @@ function scheduleRestore(api, threadID, reason) {
     try {
       if (!isPinActive(pinnedImages[threadID])) return;
       await applyPinnedImage(api, threadID, reason);
+      await updateImageBaseline(api, threadID);
     } catch (error) {
       console.error(`[تثبيت] فشل إرجاع الصورة:`, error.message || error);
     }
   }, RESTORE_DELAY);
   restoreTimers.set(threadID, timer);
+}
+
+async function updateImageBaseline(api, threadID) {
+  const image = await readGroupImage(api, threadID);
+  if (image) imageBaselines.set(threadID, image);
+  return image;
+}
+
+function startImageMonitor(api, threadID) {
+  if (!threadID || imageMonitors.has(threadID)) return;
+
+  const monitor = setInterval(async () => {
+    if (!isPinActive(pinnedImages[threadID])) {
+      stopImageMonitor(threadID);
+      return;
+    }
+    if (monitorChecks.has(threadID) || applying.has(threadID)) return;
+
+    monitorChecks.add(threadID);
+    try {
+      const currentImage = await readGroupImage(api, threadID);
+      if (!currentImage) return;
+
+      const baseline = imageBaselines.get(threadID);
+      if (baseline === undefined) {
+        imageBaselines.set(threadID, currentImage);
+      } else if (currentImage !== baseline) {
+        scheduleRestore(api, threadID, "تغيير مرصود");
+      }
+      monitorErrors.delete(threadID);
+    } catch (error) {
+      if (!monitorErrors.has(threadID)) {
+        console.error(
+          `[تثبيت] تعذر فحص صورة المجموعة ${threadID}:`,
+          error.message || error,
+        );
+        monitorErrors.add(threadID);
+      }
+    } finally {
+      monitorChecks.delete(threadID);
+    }
+  }, IMAGE_CHECK_INTERVAL);
+
+  imageMonitors.set(threadID, monitor);
 }
 
 async function downloadImage(url, destination) {
@@ -180,6 +243,8 @@ module.exports = {
       };
       saveState();
       await applyPinnedImage(api, threadID, "تثبيت جديد");
+      await updateImageBaseline(api, threadID).catch(() => {});
+      startImageMonitor(api, threadID);
       await api.sendMessage(
         "✅ تم تثبيت الصورة كصورة للمجموعة.\n🛡️ الحماية مفعّلة — إذا غيّرها أحد ستعود تلقائياً.",
         threadID,
@@ -217,6 +282,8 @@ module.exports = {
           error.message || error,
         ),
       );
+      await updateImageBaseline(api, threadID).catch(() => {});
+      startImageMonitor(api, threadID);
     }
   },
 };
