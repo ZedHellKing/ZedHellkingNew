@@ -48,6 +48,18 @@ function findImageURL(value, threadID, seen = new Set(), depth = 0) {
     return value.image_src;
   }
 
+  if (
+    value.image &&
+    typeof value.image === "object" &&
+    typeof value.image.uri === "string"
+  ) {
+    return value.image.uri;
+  }
+
+  if (typeof value.image_uri === "string") {
+    return value.image_uri;
+  }
+
   for (const child of Object.values(value)) {
     const result = findImageURL(child, threadID, seen, depth + 1);
     if (result) return result;
