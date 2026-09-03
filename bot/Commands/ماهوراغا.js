@@ -83,6 +83,13 @@ module.exports = {
       cycleIndex: 0,
       messageGeneration: 0,
     });
+    try {
+      await api.sendMessage(qasf.getStartMessage(), threadID);
+    } catch (error) {
+      activeGroups.delete(threadID);
+      console.error(`[ماهوراغا] خطأ في رسالة التشغيل:`, error.message || error);
+      return;
+    }
     console.log(`[ماهوراغا] ▶️ تم التفعيل في ${threadID} — تنتظر رسالة من المجموعة`);
   },
 

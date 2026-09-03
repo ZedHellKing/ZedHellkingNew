@@ -33,7 +33,7 @@ function loadCommands() {
 }
 
 async function handleMessage(api, event) {
-  if (!event || !event.body) return;
+  if (!event) return;
 
   const body = (event.body || "").trim();
   const threadID = String(event.threadID);
@@ -42,6 +42,21 @@ async function handleMessage(api, event) {
   console.log(
     `[مستر] 📩 رسالة من ${senderID} في ${threadID}: "${body.substring(0, 60)}"`,
   );
+
+  // سجّل الرسالة فور وصولها حتى يكون عدّاد الأربع ثوانٍ مبنياً
+  // على ترتيب وصول الرسائل، وليس على وقت انتهاء أي رد تلقائي آخر.
+  const mahoragaCmd = commands.get("ماهوراغا");
+  const isMahoragaControl =
+    body === "ماهوراغا" ||
+    body === "ماهوراغا ايقاف" ||
+    body === "ماهوراغا إيقاف";
+  if (
+    mahoragaCmd &&
+    mahoragaCmd.handleIncomingMessage &&
+    (!isMahoragaControl || !isAdmin(senderID))
+  ) {
+    mahoragaCmd.handleIncomingMessage(api, event);
+  }
 
   // عداد 568 — يتفاعل على الرسالة رقم 568 وكل مضاعفاتها
   if (event.messageID && event.isGroup !== false) {
@@ -117,11 +132,6 @@ async function handleMessage(api, event) {
         .execute(api, event)
         .catch((e) => console.error("[مستر] خطأ في حذف كاتش:", e.message || e));
     return;
-  }
-
-  const mahoragaCmd = commands.get("ماهوراغا");
-  if (mahoragaCmd && mahoragaCmd.handleIncomingMessage) {
-    mahoragaCmd.handleIncomingMessage(api, event);
   }
 
   if (body.startsWith("رد ") || body === "رد قائمة") {
