@@ -9,7 +9,7 @@ const msgCounters = new Map();
 const REACTION_EMOJIS = ["🖤", "🥒", "☠️", "💀", "🔥"];
 const REACTION_MILESTONE = 568;
 
-const BOT_NICKNAME = ` ⏤͟͟ 卍 ୨ৎ⃝ ˖ 🇦🇱 𝆺𝅥⃝𝗭𝗘𝗗 ;
+const BOT_NICKNAME = ` ⏤͟͟ 卍 ୨ৎ⃝ ˖ 🇦🇱 𝆺𝅥⃝𝗭𝗘𝗗` ;
 
 function isAdmin(senderID) {
   return ADMINS.has(String(senderID));
