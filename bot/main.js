@@ -43,6 +43,16 @@ async function handleMessage(api, event) {
     `[مستر] 📩 رسالة من ${senderID} في ${threadID}: "${body.substring(0, 60)}"`,
   );
 
+  if (body === "حالة") {
+    const cmd = commands.get("حالة");
+    if (cmd) {
+      cmd
+        .execute(api, event)
+        .catch((e) => console.error("[مستر] خطأ في أمر حالة:", e.message || e));
+    }
+    return;
+  }
+
   // سجّل الرسالة فور وصولها حتى يكون عدّاد الأربع ثوانٍ مبنياً
   // على ترتيب وصول الرسائل، وليس على وقت انتهاء أي رد تلقائي آخر.
   const mahoragaCmd = commands.get("ماهوراغا");
