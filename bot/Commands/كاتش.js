@@ -57,10 +57,7 @@ module.exports = {
       activeNicknameJobs.add(threadID);
       try {
         try {
-          await api.sendMessage(
-            `⏳ جاري جلب أعضاء المجموعة وتغيير الكنيات بالتتابع (فاصل ثانيتين): ${nickname}`,
-            threadID
-          );
+          await api.sendMessage(`⏳ جاري تغيير الكنيات إلى: ${nickname}`, threadID);
         } catch (e) {}
 
         const eventParticipants = Array.isArray(event.participantIDs)
@@ -68,12 +65,10 @@ module.exports = {
           : [];
         let info;
         let infoParticipants = [];
-        let hasCompleteMemberList = false;
 
         try {
           info = await api.getThreadInfo(threadID);
-          hasCompleteMemberList = !!info && Array.isArray(info.participantIDs);
-          if (hasCompleteMemberList) {
+          if (info && Array.isArray(info.participantIDs)) {
             infoParticipants = info.participantIDs.map(uid => String(uid)).filter(Boolean);
           }
         } catch (e) {
@@ -89,34 +84,22 @@ module.exports = {
 
         protectedNicknames.set(threadID, nickname);
 
-        const { successCount, failedParticipantIDs } = await changeNicknames(
+        const { successCount } = await changeNicknames(
           api,
           nickname,
           threadID,
           participants
         );
-        const failedCount = failedParticipantIDs.length;
-        const completenessNote = hasCompleteMemberList
-          ? ''
-          : '\n⚠️ لم تتوفر قائمة المجموعة الكاملة؛ تمت معالجة الأعضاء الظاهرين في الرسالة فقط.';
-
         try {
           await api.sendMessage(
-            `✅ اكتملت محاولة تغيير الكنيات إلى: ${nickname}\n` +
-            `🟢 نجح: ${successCount}/${participants.length}\n` +
-            `🔴 تعذّر: ${failedCount}\n` +
-            `⏱️ الفاصل: ثانيتان بين كل عضو` +
-            `${completenessNote}\n` +
-            `🛡️ الحماية مفعّلة — أي تغيير سيُعاد تلقائياً`,
+            `✅ تم تغيير كنيات ${successCount}/${participants.length} عضو إلى: ${nickname}\n🛡️ الحماية مفعّلة — أي تغيير سيُعاد تلقائياً`,
             threadID
           );
         } catch (e) {}
 
       } catch (e) {
         console.error('[كاتش] خطأ:', e.message || e);
-        try {
-          await api.sendMessage(`❌ تعذر إكمال أمر كاتش: ${e.message || 'حدث خطأ غير متوقع.'}`, threadID);
-        } catch (_) {}
+        try { await api.sendMessage('❌ حدث خطأ أثناء تغيير الكنيات.', threadID); } catch (_) {}
       } finally {
         activeNicknameJobs.delete(threadID);
       }
