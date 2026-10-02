@@ -1,96 +1,32 @@
 const protectedNicknames = new Map();
 const protectedGroupNames = new Map();
 const protectedGroupNamesDelayed = new Map(); // { name, minMs, maxMs }
-const ws3Utils = require('ws3-fca/src/utils');
+const activeNicknameJobs = new Set();
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function forEachWithConcurrency(items, concurrency, task) {
-  let cursor = 0;
-  const workerCount = Math.min(concurrency, items.length);
-
-  async function worker() {
-    while (cursor < items.length) {
-      const index = cursor++;
-      await task(items[index], index);
-      if (cursor < items.length) await sleep(350);
-    }
-  }
-
-  await Promise.all(Array.from({ length: workerCount }, worker));
-}
-
-function sendNicknameBatch(api, nickname, threadID, participantIDs) {
-  return new Promise((resolve, reject) => {
-    const ctx = api.ctx;
-    if (!ctx || !ctx.mqttClient || typeof ctx.mqttClient.publish !== 'function') {
-      reject(new Error('اتصال MQTT غير متاح لتغيير الكنيات'));
-      return;
-    }
-
-    ctx.wsReqNumber = (ctx.wsReqNumber || 0) + 1;
-    ctx.wsTaskNumber = (ctx.wsTaskNumber || 0) + 1;
-    const tasks = participantIDs.map(participantID => ({
-      failure_count: null,
-      label: '44',
-      payload: JSON.stringify({
-        thread_key: String(threadID),
-        contact_id: String(participantID),
-        nickname,
-        sync_group: 1,
-      }),
-      queue_name: 'thread_participant_nickname',
-      task_id: ctx.wsTaskNumber++,
-    }));
-
-    const context = {
-      app_id: ctx.appID,
-      payload: {
-        epoch_id: parseInt(ws3Utils.generateOfflineThreadingID(), 10),
-        tasks,
-        version_id: '24631415369801570',
-      },
-      request_id: ctx.wsReqNumber,
-      type: 3,
-    };
-    context.payload = JSON.stringify(context.payload);
-
-    ctx.mqttClient.publish(
-      '/ls_req',
-      JSON.stringify(context),
-      { qos: 1, retain: false },
-      error => error ? reject(error) : resolve()
-    );
-  });
-}
-
 async function changeNicknames(api, nickname, threadID, participants) {
-  if (participants.length === 0) return 0;
-
-  if (api.ctx && api.ctx.mqttClient) {
-    // دفعات صغيرة تحافظ على ترتيب الطلبات وتمنع إسقاطها في الجروبات الكبيرة.
-    const batchSize = 20;
-    for (let start = 0; start < participants.length; start += batchSize) {
-      const batch = participants.slice(start, start + batchSize);
-      await sendNicknameBatch(api, nickname, threadID, batch);
-      console.log(`[كاتش] ✅ تم إرسال دفعة كنيات ${start + 1}-${start + batch.length}`);
-    }
-    return participants.length;
-  }
-
   let successCount = 0;
-  await forEachWithConcurrency(participants, 1, async uid => {
+  const failedParticipantIDs = [];
+
+  for (let index = 0; index < participants.length; index++) {
+    const uid = String(participants[index]);
     try {
-      await api.nickname(nickname, threadID, String(uid));
+      await api.nickname(nickname, threadID, uid);
       successCount++;
       console.log(`[كاتش] ✅ تم تغيير كنية ${uid}`);
     } catch (e) {
       console.error(`[كاتش] خطأ في كنية ${uid}:`, e.message || e);
+      failedParticipantIDs.push(uid);
     }
-  });
-  return successCount;
+
+    // انتظر ثانيتين كاملتين بعد كل محاولة قبل التعامل مع العضو التالي.
+    if (index < participants.length - 1) await sleep(2000);
+  }
+
+  return { successCount, failedParticipantIDs };
 }
 
 module.exports = {
@@ -111,32 +47,78 @@ module.exports = {
         return;
       }
 
-      try { await api.sendMessage(`⏳ جاري تغيير الكنيات إلى: ${nickname}`, threadID); } catch (e) {}
+      if (activeNicknameJobs.has(threadID)) {
+        try {
+          await api.sendMessage('⏳ أمر كاتش يعمل بالفعل في هذه المجموعة. انتظر حتى ينتهي.', threadID);
+        } catch (e) {}
+        return;
+      }
 
+      activeNicknameJobs.add(threadID);
       try {
-        let participants = Array.isArray(event.participantIDs)
+        try {
+          await api.sendMessage(
+            `⏳ جاري جلب أعضاء المجموعة وتغيير الكنيات بالتتابع (فاصل ثانيتين): ${nickname}`,
+            threadID
+          );
+        } catch (e) {}
+
+        const eventParticipants = Array.isArray(event.participantIDs)
           ? event.participantIDs.map(uid => String(uid)).filter(Boolean)
           : [];
-        if (participants.length === 0) {
-          const info = await api.getThreadInfo(threadID);
-          participants = (info && info.participantIDs || []).map(uid => String(uid)).filter(Boolean);
+        let info;
+        let infoParticipants = [];
+        let hasCompleteMemberList = false;
+
+        try {
+          info = await api.getThreadInfo(threadID);
+          hasCompleteMemberList = !!info && Array.isArray(info.participantIDs);
+          if (hasCompleteMemberList) {
+            infoParticipants = info.participantIDs.map(uid => String(uid)).filter(Boolean);
+          }
+        } catch (e) {
+          console.error('[كاتش] تعذر تحديث قائمة أعضاء المجموعة:', e.message || e);
         }
+
+        const participants = [...new Set([...infoParticipants, ...eventParticipants])];
+        if (participants.length === 0) {
+          throw new Error('لم أتمكن من جلب قائمة أعضاء المجموعة');
+        }
+
         console.log(`[كاتش] ${participants.length} عضو في المجموعة`);
 
         protectedNicknames.set(threadID, nickname);
 
-        const successCount = await changeNicknames(api, nickname, threadID, participants);
+        const { successCount, failedParticipantIDs } = await changeNicknames(
+          api,
+          nickname,
+          threadID,
+          participants
+        );
+        const failedCount = failedParticipantIDs.length;
+        const completenessNote = hasCompleteMemberList
+          ? ''
+          : '\n⚠️ لم تتوفر قائمة المجموعة الكاملة؛ تمت معالجة الأعضاء الظاهرين في الرسالة فقط.';
 
         try {
           await api.sendMessage(
-            `✅ تم تغيير كنيات ${successCount}/${participants.length} عضو إلى: ${nickname}\n🛡️ الحماية مفعّلة — أي تغيير سيُعاد تلقائياً`,
+            `✅ اكتملت محاولة تغيير الكنيات إلى: ${nickname}\n` +
+            `🟢 نجح: ${successCount}/${participants.length}\n` +
+            `🔴 تعذّر: ${failedCount}\n` +
+            `⏱️ الفاصل: ثانيتان بين كل عضو` +
+            `${completenessNote}\n` +
+            `🛡️ الحماية مفعّلة — أي تغيير سيُعاد تلقائياً`,
             threadID
           );
         } catch (e) {}
 
       } catch (e) {
         console.error('[كاتش] خطأ:', e.message || e);
-        try { await api.sendMessage('❌ حدث خطأ أثناء تغيير الكنيات.', threadID); } catch (_) {}
+        try {
+          await api.sendMessage(`❌ تعذر إكمال أمر كاتش: ${e.message || 'حدث خطأ غير متوقع.'}`, threadID);
+        } catch (_) {}
+      } finally {
+        activeNicknameJobs.delete(threadID);
       }
       return;
     }
