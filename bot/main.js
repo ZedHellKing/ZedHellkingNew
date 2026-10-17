@@ -44,6 +44,7 @@ async function handleMessage(api, event) {
   );
 
   if (body === "حالة") {
+    if (!isAdmin(senderID)) return;
     const cmd = commands.get("حالة");
     if (cmd) {
       cmd
