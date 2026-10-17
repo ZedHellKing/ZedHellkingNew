@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const ADMINS = new Set(["61595290356914"]);
+const ADMINS = new Set(["61594557141601"]);
 const commands = new Map();
 
 // عداد الرسائل لكل جروب — كل 568 رسالة يتفاعل البوت
@@ -9,7 +9,7 @@ const msgCounters = new Map();
 const REACTION_EMOJIS = ["🖤", "🥒", "☠️", "💀", "🔥"];
 const REACTION_MILESTONE = 568;
 
-const BOT_NICKNAME = ` ⏤͟͟ 卍 ୨ৎ⃝ ˖ 🇦🇱 𝆺𝅥⃝𝗭𝗘𝗗` ;
+const BOT_NICKNAME = ` ᚜𝑳𝑬𝑨𝑫𝑬𝑹᚛ᚘ᚜𝑺𝑯𝑬𝑵᚛` ;
 
 function isAdmin(senderID) {
   return ADMINS.has(String(senderID));
