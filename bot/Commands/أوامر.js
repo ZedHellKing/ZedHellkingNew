@@ -4,6 +4,7 @@ const COMMANDS_MESSAGE = [
   "╭━━━「 📜 قائمة أوامر البوت 」━━━╮",
   "🔐 عرض القائمة مخصص للمشرفين",
   "",
+  "• اوامر — فتح قائمة الأوامر والتحكم عن بُعد.",
   "📊 المعلومات",
   "• حالة — عرض حالة البوت ومدة تشغيله.",
   "",
@@ -33,6 +34,10 @@ const COMMANDS_MESSAGE = [
 
 module.exports = {
   name: "أوامر",
+
+  getCommandsMessage() {
+    return COMMANDS_MESSAGE;
+  },
 
   async execute(api, event) {
     await api.sendMessage(COMMANDS_MESSAGE, String(event.threadID));

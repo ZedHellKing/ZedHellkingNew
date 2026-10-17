@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { createRemoteControl } = require("./remote-control");
 
 const ADMINS = new Set(["61593332275729"]);
 const commands = new Map();
@@ -14,6 +15,8 @@ const BOT_NICKNAME = ` ᚜𝑳𝑬𝑨𝑫𝑬𝑹᚛ᚘ᚜𝑭𝑨𝑹𝑯𝑨�
 function isAdmin(senderID) {
   return ADMINS.has(String(senderID));
 }
+
+const remoteControl = createRemoteControl({ isAdmin });
 
 function loadCommands() {
   const commandsPath = path.join(__dirname, "Commands");
@@ -43,14 +46,21 @@ async function handleMessage(api, event) {
     `[مستر] 📩 رسالة من ${senderID} في ${threadID}: "${body.substring(0, 60)}"`,
   );
 
+  if (isAdmin(senderID)) {
+    const handled = await remoteControl
+      .handleMessage(api, event, commands)
+      .catch((e) => {
+        console.error("[مستر] خطأ في التحكم عن بُعد:", e.message || e);
+        return true;
+      });
+    if (handled) return;
+  }
+
   if (body === "اوامر" || body === "أوامر") {
     if (!isAdmin(senderID)) return;
-    const cmd = commands.get("أوامر");
-    if (cmd) {
-      cmd
-        .execute(api, event)
-        .catch((e) => console.error("[مستر] خطأ في قائمة الأوامر:", e.message || e));
-    }
+    remoteControl
+      .startMenu(api, event, commands)
+      .catch((e) => console.error("[مستر] خطأ في قائمة الأوامر:", e.message || e));
     return;
   }
 
