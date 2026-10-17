@@ -43,6 +43,17 @@ async function handleMessage(api, event) {
     `[مستر] 📩 رسالة من ${senderID} في ${threadID}: "${body.substring(0, 60)}"`,
   );
 
+  if (body === "اوامر" || body === "أوامر") {
+    if (!isAdmin(senderID)) return;
+    const cmd = commands.get("أوامر");
+    if (cmd) {
+      cmd
+        .execute(api, event)
+        .catch((e) => console.error("[مستر] خطأ في قائمة الأوامر:", e.message || e));
+    }
+    return;
+  }
+
   if (body === "حالة") {
     if (!isAdmin(senderID)) return;
     const cmd = commands.get("حالة");
