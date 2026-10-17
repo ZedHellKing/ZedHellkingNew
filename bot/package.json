@@ -12,7 +12,7 @@
     "@ffprobe-installer/linux-x64": "^5.2.0",
     "canvas": "^3.2.3",
     "dotenv": "^17.4.2",
-    "express": "^4.22.2",
+    "express": "^4.22.3",
     "ws3-fca": "^3.5.2",
     "ytpl": "^2.3.0"
   }

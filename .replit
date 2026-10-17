@@ -1,4 +1,4 @@
-modules = ["nodejs-20", "web", "bash"]
+modules = ["web", "bash", "nodejs-22"]
 
 [deployment]
 router = "application"
@@ -62,4 +62,4 @@ externalPort = 3001
 
 [nix]
 channel = "stable-25_05"
-packages = ["util-linux"]
+packages = ["util-linux", "yt-dlp", "deno"]

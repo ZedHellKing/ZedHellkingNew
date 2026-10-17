@@ -2,15 +2,16 @@ const { exec } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-// الاعتماد على الأداة والنظام في كالي مباشرة بدون مكتبات مدمجة مسببة للتجمد
+// استخدام أدوات النظام المثبتة في بيئة التشغيل.
 const YTDL_PATH = 'yt-dlp';
+const DENO_PATH = process.env.DENO_BIN || 'deno';
 
 function downloadAudio(query, outFile) {
   return new Promise((resolve, reject) => {
     const safeQuery = query.replace(/"/g, '\\"').replace(/`/g, '');
 
     // استخدام Deno كـ JavaScript runtime لمساعدة yt-dlp مع YouTube
-    const cmd = `"${YTDL_PATH}" --js-runtimes /home/zed/.deno/bin/deno --remote-components ejs:github --extractor-args "youtube:player_client=web_embedded" "ytsearch1:${safeQuery}" -x --audio-format mp3 --audio-quality 0 --no-playlist -o "${outFile}"`;
+    const cmd = `"${YTDL_PATH}" --js-runtimes "deno:${DENO_PATH}" --remote-components ejs:github --extractor-args "youtube:player_client=web_embedded" "ytsearch1:${safeQuery}" -x --audio-format mp3 --audio-quality 0 --no-playlist -o "${outFile}"`;
     console.log(`[يوت] تنفيذ: ${cmd}`);
 
     exec(cmd, { timeout: 150000 }, (err, stdout, stderr) => {
