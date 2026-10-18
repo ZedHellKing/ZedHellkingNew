@@ -47,19 +47,23 @@ function createHarness(groups = [], { useDefaultGroups = false } = {}) {
   const remote = createRemoteControl(remoteOptions);
 
   async function reply(body, options = {}) {
-    const prompt = messages.at(-1);
+    const threadID = options.threadID || "admin-dm";
+    const senderID = options.senderID || "admin-1";
+    const prompt = [...messages]
+      .reverse()
+      .find((message) => String(message.threadID) === String(threadID));
     return remote.handleMessage(
       api,
       {
         body,
-        threadID: "admin-dm",
-        senderID: "admin-1",
-        isGroup: false,
+        threadID,
+        senderID,
+        isGroup: options.isGroup ?? threadID !== "admin-dm",
         messageID: `user-${++nextIncomingID}`,
         messageReply: {
-          messageID: options.replyTo || prompt.messageID,
+          messageID: options.replyTo || (prompt && prompt.messageID) || "missing-prompt",
           senderID: "bot-id",
-          body: prompt.message,
+          body: (prompt && prompt.message) || "",
           attachments: [],
         },
         attachments: options.attachments || [],
@@ -101,6 +105,42 @@ test("shows the two-option menu only to an admin in a private conversation", asy
 
   await h.reply("1", { replyTo: "not-the-menu" });
   assert.equal(h.messages.length, 1, "unrelated replies do not advance the menu");
+});
+
+test("supports group control for the initiating admin and keeps sessions separate by conversation", async () => {
+  const h = createHarness(sampleGroups);
+  await h.remote.startMenu(
+    h.api,
+    { senderID: "admin-1", threadID: "control-group", isGroup: true },
+    h.commands,
+  );
+  const groupMenuID = h.messages.at(-1).messageID;
+  assert.equal(h.messages.at(-1).threadID, "control-group");
+  assert.match(h.messages.at(-1).message, /المشرف الذي بدأها فقط/);
+
+  assert.equal(
+    await h.reply("2", { senderID: "member-1", threadID: "control-group", replyTo: groupMenuID }),
+    false,
+    "a group member cannot take over the menu",
+  );
+  assert.equal(
+    await h.reply("2", { threadID: "other-group", replyTo: groupMenuID }),
+    false,
+    "a reply from another conversation cannot advance this menu",
+  );
+
+  await h.remote.startMenu(
+    h.api,
+    { senderID: "admin-1", threadID: "admin-dm", isGroup: false },
+    h.commands,
+  );
+  await h.reply("2", { threadID: "control-group" });
+  assert.equal(h.messages.at(-1).threadID, "control-group");
+  assert.match(h.messages.at(-1).message, /التحكم عن بُعد/);
+
+  await h.reply("1", { threadID: "admin-dm" });
+  assert.equal(h.messages.at(-1).threadID, "admin-dm");
+  assert.equal(h.messages.at(-1).message, "HELP COMMANDS");
 });
 
 test("selecting 2 opens Mahuraga group selection and starts it in the chosen group", async () => {

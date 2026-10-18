@@ -128,6 +128,10 @@ function parseNumber(value) {
   return Number.isSafeInteger(number) ? number : null;
 }
 
+function makeSessionKey(adminID, threadID) {
+  return JSON.stringify([String(adminID), String(threadID)]);
+}
+
 async function fetchGroups(api) {
   if (typeof api.getThreadList !== "function") {
     throw new Error("مكتبة البوت لا توفر جلب قائمة المحادثات.");
@@ -279,7 +283,7 @@ function createRemoteControl({ isAdmin, getGroups = fetchGroups }) {
     }
     session.promptMessageID = String(result.messageID);
     session.expiresAt = Date.now() + SESSION_TTL_MS;
-    sessions.set(session.adminID, session);
+    sessions.set(session.key, session);
   }
 
   async function startMenu(api, event, commands) {
@@ -289,31 +293,28 @@ function createRemoteControl({ isAdmin, getGroups = fetchGroups }) {
     const controlThreadID = String(event.threadID || "");
     if (!controlThreadID) return false;
 
-    if (event.isGroup !== false) {
-      await api.sendMessage(
-        "افتح محادثة خاصة مع البوت واكتب «اوامر» حتى لا تظهر أسماء المجموعات في المحادثات العامة.",
-        controlThreadID,
-      );
-      return true;
-    }
-
     const helpCommand = commands.get("أوامر");
     if (!helpCommand || typeof helpCommand.getCommandsMessage !== "function") {
       throw new Error("قائمة الأوامر غير محمّلة.");
     }
 
     const session = {
+      key: makeSessionKey(adminID, controlThreadID),
       adminID,
       controlThreadID,
+      controlIsGroup: event.isGroup !== false,
       helpMessage: helpCommand.getCommandsMessage(),
       phase: "main-menu",
       expiresAt: Date.now() + SESSION_TTL_MS,
     };
-    sessions.set(adminID, session);
+    sessions.set(session.key, session);
     try {
-      await sendPrompt(api, session, MAIN_MENU);
+      const groupNotice = session.controlIsGroup
+        ? "\n\n🔒 القائمة ظاهرة لأعضاء المجموعة، لكن المشرف الذي بدأها فقط يستطيع متابعة التحكم."
+        : "";
+      await sendPrompt(api, session, `${MAIN_MENU}${groupNotice}`);
     } catch (error) {
-      sessions.delete(adminID);
+      sessions.delete(session.key);
       throw error;
     }
     return true;
@@ -328,7 +329,7 @@ function createRemoteControl({ isAdmin, getGroups = fetchGroups }) {
     const result = await getGroups(api);
     const groups = Array.isArray(result) ? result : result.groups;
     if (!Array.isArray(groups) || groups.length === 0) {
-      sessions.delete(session.adminID);
+      sessions.delete(session.key);
       await api.sendMessage(
         "لم أجد مجموعات في قائمة الوارد أو المؤرشف. تأكد أن البوت عضو في المجموعات ثم أعد المحاولة.",
         session.controlThreadID,
@@ -363,7 +364,7 @@ function createRemoteControl({ isAdmin, getGroups = fetchGroups }) {
     };
     if (session.imageReply) remoteEvent.messageReply = session.imageReply;
 
-    sessions.delete(session.adminID);
+    sessions.delete(session.key);
     await command.execute(api, remoteEvent);
 
     if (action.destination === "admin") return;
@@ -378,18 +379,20 @@ function createRemoteControl({ isAdmin, getGroups = fetchGroups }) {
     const adminID = String(event.senderID || "");
     if (!isAdmin(adminID)) return false;
 
-    const session = sessions.get(adminID);
+    const controlThreadID = String(event.threadID || "");
+    const sessionKey = makeSessionKey(adminID, controlThreadID);
+    const session = sessions.get(sessionKey);
     if (!session) return false;
 
     const replyID = event.messageReply && event.messageReply.messageID;
     const isExpectedReply =
-      String(event.threadID || "") === session.controlThreadID &&
+      controlThreadID === session.controlThreadID &&
       replyID &&
       String(replyID) === session.promptMessageID;
     if (!isExpectedReply) return false;
 
     if (Date.now() > session.expiresAt) {
-      sessions.delete(adminID);
+      sessions.delete(session.key);
       await api.sendMessage(
         "انتهت صلاحية جلسة التحكم. اكتب «اوامر» لبدء جلسة جديدة.",
         session.controlThreadID,
@@ -404,7 +407,7 @@ function createRemoteControl({ isAdmin, getGroups = fetchGroups }) {
       if (session.phase === "main-menu") {
         const choice = parseNumber(body);
         if (choice === 1) {
-          sessions.delete(adminID);
+          sessions.delete(session.key);
           await api.sendMessage(session.helpMessage, session.controlThreadID);
           return true;
         }
@@ -532,7 +535,7 @@ function createRemoteControl({ isAdmin, getGroups = fetchGroups }) {
         return true;
       }
     } catch (error) {
-      sessions.delete(adminID);
+      sessions.delete(session.key);
       console.error("[التحكم عن بُعد] خطأ:", error.message || error);
       await api.sendMessage(
         `❌ تعذر إكمال التحكم عن بُعد: ${error.message || "خطأ غير معروف"}\nاكتب «اوامر» للبدء من جديد.`,
@@ -541,7 +544,7 @@ function createRemoteControl({ isAdmin, getGroups = fetchGroups }) {
       return true;
     }
 
-    sessions.delete(adminID);
+    sessions.delete(session.key);
     await api.sendMessage(
       "انتهت هذه الخطوة. اكتب «اوامر» لبدء التحكم من جديد.",
       session.controlThreadID,
