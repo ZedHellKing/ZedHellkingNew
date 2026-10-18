@@ -31,6 +31,7 @@ node_modules
 /.sass-cache
 /connect.lock
 /coverage
+/bot/data/youtube-state.json*
 /libpeerconnection.log
 npm-debug.log
 yarn-error.log

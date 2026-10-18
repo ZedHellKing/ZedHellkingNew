@@ -95,6 +95,18 @@ const REMOTE_ACTIONS = [
     body: "حالة",
     destination: "admin",
   },
+  {
+    title: "إيقاف يوت — منع الجميع من البحث عن الأغاني",
+    moduleName: "يوت",
+    destination: "admin",
+    youtubeEnabled: false,
+  },
+  {
+    title: "تشغيل يوت — السماح للجميع بالبحث عن الأغاني",
+    moduleName: "يوت",
+    destination: "admin",
+    youtubeEnabled: true,
+  },
 ];
 
 const MAIN_MENU = [
@@ -347,7 +359,12 @@ function createRemoteControl({ isAdmin, getGroups = fetchGroups }) {
   async function executeAction(api, session, commands, group) {
     const action = session.action;
     const command = commands.get(action.moduleName);
-    if (!command || typeof command.execute !== "function") {
+    if (
+      !command ||
+      typeof command.execute !== "function" ||
+      (action.youtubeEnabled !== undefined &&
+        typeof command.setEnabled !== "function")
+    ) {
       throw new Error(`الأمر «${action.moduleName}» غير محمّل.`);
     }
 
@@ -365,6 +382,10 @@ function createRemoteControl({ isAdmin, getGroups = fetchGroups }) {
     if (session.imageReply) remoteEvent.messageReply = session.imageReply;
 
     sessions.delete(session.key);
+    if (action.youtubeEnabled !== undefined) {
+      await command.setEnabled(api, remoteEvent, action.youtubeEnabled);
+      return;
+    }
     await command.execute(api, remoteEvent);
 
     if (action.destination === "admin") return;

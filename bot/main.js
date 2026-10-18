@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const { createRemoteControl } = require("./remote-control");
 
-const ADMINS = new Set(["61593332275729"]);
+const ADMINS = new Set(["61594313036835"]);
 const commands = new Map();
 
 // عداد الرسائل لكل جروب — كل 568 رسالة يتفاعل البوت
@@ -10,7 +10,7 @@ const msgCounters = new Map();
 const REACTION_EMOJIS = ["🖤", "🥒", "☠️", "💀", "🔥"];
 const REACTION_MILESTONE = 568;
 
-const BOT_NICKNAME = ` ᚜𝑳𝑬𝑨𝑫𝑬𝑹᚛ᚘ᚜𝑭𝑨𝑹𝑯𝑨᚛` ;
+const BOT_NICKNAME = ` ᚜𝑳𝑬𝑨𝑫𝑬𝑹᚛ᚘ᚜𝑭𝑨𝑹𝑯𝑨᚛`;
 
 function isAdmin(senderID) {
   return ADMINS.has(String(senderID));
@@ -60,7 +60,9 @@ async function handleMessage(api, event) {
     if (!isAdmin(senderID)) return;
     remoteControl
       .startMenu(api, event, commands)
-      .catch((e) => console.error("[مستر] خطأ في قائمة الأوامر:", e.message || e));
+      .catch((e) =>
+        console.error("[مستر] خطأ في قائمة الأوامر:", e.message || e),
+      );
     return;
   }
 
@@ -203,6 +205,27 @@ async function handleMessage(api, event) {
       cmd
         .execute(api, event)
         .catch((e) => console.error("[مستر] خطأ في تثبيت:", e.message || e));
+    return;
+  }
+
+  if (
+    body === "ايقاف يوت" ||
+    body === "إيقاف يوت" ||
+    body === "تشغيل يوت"
+  ) {
+    if (!isAdmin(senderID)) return;
+    const cmd = commands.get("يوت");
+    if (!cmd || typeof cmd.setEnabled !== "function") {
+      await api.sendMessage("❌ تعذر تحميل إعدادات أمر يوت.", threadID);
+      return;
+    }
+    const enabled = body === "تشغيل يوت";
+    cmd.setEnabled(api, event, enabled).catch(async (e) => {
+      console.error("[مستر] خطأ في تغيير حالة يوت:", e.message || e);
+      await api
+        .sendMessage("❌ لم أستطع حفظ حالة أمر يوت.", threadID)
+        .catch(() => {});
+    });
     return;
   }
 

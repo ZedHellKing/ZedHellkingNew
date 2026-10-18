@@ -1,10 +1,11 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { createRemoteControl } = require("../remote-control");
+const { createRemoteControl, REMOTE_ACTIONS } = require("../remote-control");
 
 function createHarness(groups = [], { useDefaultGroups = false } = {}) {
   const messages = [];
   const executions = [];
+  const youtubeToggles = [];
   let nextMessageID = 0;
   let nextIncomingID = 0;
 
@@ -31,14 +32,19 @@ function createHarness(groups = [], { useDefaultGroups = false } = {}) {
       "رد",
       "يوت",
       "حالة",
-    ].map((name) => [
-      name,
-      {
+    ].map((name) => {
+      const command = {
         async execute(_api, event) {
           executions.push({ name, event });
         },
-      },
-    ]),
+      };
+      if (name === "يوت") {
+        command.setEnabled = async (_api, event, enabled) => {
+          youtubeToggles.push({ event, enabled });
+        };
+      }
+      return [name, command];
+    }),
   ]);
   const remoteOptions = {
     isAdmin: (senderID) => senderID === "admin-1",
@@ -73,7 +79,7 @@ function createHarness(groups = [], { useDefaultGroups = false } = {}) {
     );
   }
 
-  return { api, commands, executions, messages, remote, reply };
+  return { api, commands, executions, messages, remote, reply, youtubeToggles };
 }
 
 const sampleGroups = [
@@ -141,6 +147,38 @@ test("supports group control for the initiating admin and keeps sessions separat
   await h.reply("1", { threadID: "admin-dm" });
   assert.equal(h.messages.at(-1).threadID, "admin-dm");
   assert.equal(h.messages.at(-1).message, "HELP COMMANDS");
+});
+
+test("remote control can disable and enable song search without selecting a group", async () => {
+  const h = createHarness(sampleGroups);
+  await h.remote.startMenu(
+    h.api,
+    { senderID: "admin-1", threadID: "admin-dm", isGroup: false },
+    h.commands,
+  );
+  await h.reply("2");
+
+  const stopChoice =
+    REMOTE_ACTIONS.findIndex((action) => action.youtubeEnabled === false) + 1;
+  assert.ok(stopChoice > 0);
+  await h.reply(String(stopChoice));
+
+  assert.equal(h.youtubeToggles.length, 1);
+  assert.equal(h.youtubeToggles[0].enabled, false);
+  assert.equal(h.youtubeToggles[0].event.threadID, "admin-dm");
+
+  await h.remote.startMenu(
+    h.api,
+    { senderID: "admin-1", threadID: "admin-dm", isGroup: false },
+    h.commands,
+  );
+  await h.reply("2");
+  const startChoice =
+    REMOTE_ACTIONS.findIndex((action) => action.youtubeEnabled === true) + 1;
+  await h.reply(String(startChoice));
+
+  assert.equal(h.youtubeToggles.length, 2);
+  assert.equal(h.youtubeToggles[1].enabled, true);
 });
 
 test("selecting 2 opens Mahuraga group selection and starts it in the chosen group", async () => {
