@@ -1,4 +1,4 @@
-# بوت مستر
+# بوت الأسطورة جان
 
 بوت Facebook Messenger مكتوب بـ Node.js يستخدم مكتبة `ws3-fca`.
 
@@ -8,7 +8,7 @@
 cd bot && node index.js
 ```
 
-أو شغّل workflow **بوت مستر** من واجهة Replit.
+أو شغّل workflow **الأسطورة جان** من واجهة Replit.
 
 ## المتطلبات
 

@@ -18,10 +18,10 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "بوت مستر"
+args = "الأسطورة جان"
 
 [[workflows.workflow]]
-name = "بوت مستر"
+name = "الأسطورة جان"
 author = "agent"
 
 [[workflows.workflow.tasks]]

@@ -1,21 +1,21 @@
 // ─── صمّام الأمان العالمي: لا يموت البوت أبداً ───
 process.on('uncaughtException', (err) => {
-  console.error('[مستر] 🔴 خطأ غير متوقع:', err && err.message ? err.message : String(err));
-  console.log('[مستر] 🟢 استمرار... إعادة الاتصال خلال 10 ثواني');
+  console.error('[الأسطورة جان] 🔴 خطأ غير متوقع:', err && err.message ? err.message : String(err));
+  console.log('[الأسطورة جان] 🟢 استمرار... إعادة الاتصال خلال 10 ثواني');
   scheduleRestart(10000);
 });
 
 process.on('unhandledRejection', (reason) => {
-  console.error('[مستر] 🔴 وعد غير معالج:', reason && reason.message ? reason.message : String(reason));
-  console.log('[مستر] 🟢 استمرار...');
+  console.error('[الأسطورة جان] 🔴 وعد غير معالج:', reason && reason.message ? reason.message : String(reason));
+  console.log('[الأسطورة جان] 🟢 استمرار...');
 });
 
 process.on('SIGTERM', () => {
-  console.log('[مستر] ⚠️ استلمت SIGTERM — البوت يتجاهلها ويكمل');
+  console.log('[الأسطورة جان] ⚠️ استلمت SIGTERM — البوت يتجاهلها ويكمل');
 });
 
 process.on('SIGHUP', () => {
-  console.log('[مستر] ⚠️ استلمت SIGHUP — البوت يتجاهلها ويكمل');
+  console.log('[الأسطورة جان] ⚠️ استلمت SIGHUP — البوت يتجاهلها ويكمل');
 });
 
 const fs = require('fs');
@@ -29,8 +29,8 @@ const app = express();
 
 app.get('/', (req, res) => {
   res.json({
-    status: botApi ? '🟢 بوت مستر يعمل' : '🔴 جاري إعادة الاتصال...',
-    bot: 'مستر',
+    status: botApi ? '🟢 بوت الأسطورة جان يعمل' : '🔴 جاري إعادة الاتصال...',
+    bot: 'الأسطورة جان',
     loggedIn: !!botApi,
     uptime: Math.floor(process.uptime()) + ' ثانية',
     reconnectAttempts,
@@ -38,7 +38,7 @@ app.get('/', (req, res) => {
   });
 });
 
-app.get('/ping', (req, res) => res.send('pong - مستر حي ويعمل 💀'));
+app.get('/ping', (req, res) => res.send('pong - الأسطورة جان حي ويعمل 💀'));
 
 app.get('/testsend', async (req, res) => {
   const threadID = req.query.thread;
@@ -58,7 +58,7 @@ app.post('/updatecookies', express.json(), (req, res) => {
     if (!Array.isArray(cookies) || cookies.length === 0)
       return res.status(400).json({ error: 'Invalid cookies format.' });
     fs.writeFileSync(appstatePath, JSON.stringify(cookies, null, 2));
-    console.log('[مستر] ✅ تم تحديث الكوكيز عبر HTTP');
+    console.log('[الأسطورة جان] ✅ تم تحديث الكوكيز عبر HTTP');
     res.json({ success: true, message: 'Cookies updated. Reconnecting...' });
     scheduleRestart(3000);
   } catch (e) {
@@ -67,7 +67,7 @@ app.post('/updatecookies', express.json(), (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`[مستر] 🌐 خادم Uptime يعمل على المنفذ ${PORT}`);
+  console.log(`[الأسطورة جان] 🌐 خادم Uptime يعمل على المنفذ ${PORT}`);
 });
 
 let botApi = null;
@@ -83,10 +83,10 @@ function startHeartbeat(api) {
     try {
       if (api && api.getCurrentUserID) {
         api.getCurrentUserID();
-        console.log('[مستر] 💓 Heartbeat');
+        console.log('[الأسطورة جان] 💓 Heartbeat');
       }
     } catch (e) {
-      console.error('[مستر] ⚠️ Heartbeat failed:', e.message);
+      console.error('[الأسطورة جان] ⚠️ Heartbeat failed:', e.message);
     }
   }, 30000);
 }
@@ -130,7 +130,7 @@ function startBot() {
 
   // لو الملف مش موجود → ننتظر ونحاول مجدداً
   if (!fs.existsSync(appstatePath)) {
-    console.error('[مستر] ❌ appstate.json غير موجود — إعادة المحاولة بعد 30 ثانية');
+    console.error('[الأسطورة جان] ❌ appstate.json غير موجود — إعادة المحاولة بعد 30 ثانية');
     setTimeout(startBot, 30000);
     return;
   }
@@ -139,12 +139,12 @@ function startBot() {
   try {
     appstate = JSON.parse(fs.readFileSync(appstatePath, 'utf8'));
   } catch (e) {
-    console.error('[مستر] ❌ خطأ في قراءة appstate.json:', e.message, '— إعادة بعد 30 ثانية');
+    console.error('[الأسطورة جان] ❌ خطأ في قراءة appstate.json:', e.message, '— إعادة بعد 30 ثانية');
     setTimeout(startBot, 30000);
     return;
   }
 
-  console.log('[مستر] 🚀 جاري تسجيل الدخول...');
+  console.log('[الأسطورة جان] 🚀 جاري تسجيل الدخول...');
 
   login(
     { appState: appstate },
@@ -160,12 +160,12 @@ function startBot() {
     (err, api) => {
       if (err) {
         const errStr = JSON.stringify(err);
-        console.error('[مستر] ❌ فشل تسجيل الدخول:', errStr);
+        console.error('[الأسطورة جان] ❌ فشل تسجيل الدخول:', errStr);
         const errMsg = String(err.message || err.error || errStr);
 
         // فيسبوك حظر الجلسة → انتظر 5 دقائق
         if (errMsg.includes('retrieving userID') || errMsg.includes('blocked') || errMsg.includes('unknown location') || errMsg.includes('checkpoint')) {
-          console.log('[مستر] 🔴 checkpoint أو حظر — إعادة بعد 5 دقائق');
+          console.log('[الأسطورة جان] 🔴 checkpoint أو حظر — إعادة بعد 5 دقائق');
           isRestarting = false;
           setTimeout(startBot, 5 * 60 * 1000);
           return;
@@ -174,13 +174,13 @@ function startBot() {
         // أي خطأ آخر → انتظر مع backoff (15ث → 30ث → 60ث → 120ث max)
         reconnectAttempts++;
         const delay = Math.min(15000 * reconnectAttempts, 120000);
-        console.log(`[مستر] ⏳ إعادة بعد ${delay / 1000}ث (محاولة ${reconnectAttempts})`);
+        console.log(`[الأسطورة جان] ⏳ إعادة بعد ${delay / 1000}ث (محاولة ${reconnectAttempts})`);
         isRestarting = false;
         setTimeout(startBot, delay);
         return;
       }
 
-      console.log('[مستر] ✅ تم تسجيل الدخول!');
+      console.log('[الأسطورة جان] ✅ تم تسجيل الدخول!');
       isRestarting = false;
       reconnectAttempts = 0;
       botApi = api;
@@ -190,15 +190,15 @@ function startBot() {
         const state = api.getAppState();
         if (state && state.length > 0)
           fs.writeFileSync(appstatePath, JSON.stringify(state, null, 2));
-        console.log('[مستر] 💾 تم تحديث appstate.json');
+        console.log('[الأسطورة جان] 💾 تم تحديث appstate.json');
       } catch (e) {}
 
       const ctx = api.ctx;
       if (ctx && ctx.lastSeqId) {
         ctx.firstListen = true;
-        console.log(`[مستر] 🔑 Sequence ID: ${ctx.lastSeqId}`);
+        console.log(`[الأسطورة جان] 🔑 Sequence ID: ${ctx.lastSeqId}`);
       } else {
-        console.log('[مستر] ⚠️ لم يُعثر على irisSeqID');
+        console.log('[الأسطورة جان] ⚠️ لم يُعثر على irisSeqID');
       }
 
       loadCommands();
@@ -215,21 +215,21 @@ function startBot() {
         const pin = commands.get('تثبيت');
         if (pin && pin.resumeAll) pin.resumeAll(api);
       } catch (e) {
-        console.error('[مستر] خطأ في استئناف الحمايات:', e.message);
+        console.error('[الأسطورة جان] خطأ في استئناف الحمايات:', e.message);
       }
 
-      console.log('[مستر] 🤖 البوت "مستر" يعمل — لا يتوقف أبداً 💀');
-      console.log('[مستر] ─────────────────────────────────');
-      console.log('[مستر] 📋 الأوامر المتاحة:');
-      console.log('[مستر]   • بانكاي [ID] / بانكاي ايقاف');
-      console.log('[مستر]   • قصف / قصف ايقاف');
-      console.log('[مستر]   • ماهوراغا / ماهوراغا ايقاف');
-      console.log('[مستر]   • كاتش / مجموعة / جروب');
-      console.log('[مستر]   • تثبيت (بالرد على صورة)');
-      console.log('[مستر]   • رد [كلمة]» [رد]');
-      console.log('[مستر]   • حالة');
-      console.log('[مستر]   • يوت [اسم المقطع]');
-      console.log('[مستر] ─────────────────────────────────');
+      console.log('[الأسطورة جان] 🤖 بوت "الأسطورة جان" يعمل — لا يتوقف أبداً 💀');
+      console.log('[الأسطورة جان] ─────────────────────────────────');
+      console.log('[الأسطورة جان] 📋 الأوامر المتاحة:');
+      console.log('[الأسطورة جان]   • بانكاي [ID] / بانكاي ايقاف');
+      console.log('[الأسطورة جان]   • قصف / قصف ايقاف');
+      console.log('[الأسطورة جان]   • ماهوراغا / ماهوراغا ايقاف');
+      console.log('[الأسطورة جان]   • كاتش / مجموعة / جروب');
+      console.log('[الأسطورة جان]   • تثبيت (بالرد على صورة)');
+      console.log('[الأسطورة جان]   • رد [كلمة]» [رد]');
+      console.log('[الأسطورة جان]   • حالة');
+      console.log('[الأسطورة جان]   • يوت [اسم المقطع]');
+      console.log('[الأسطورة جان] ─────────────────────────────────');
     }
   );
 }
@@ -239,7 +239,7 @@ async function startListening(api) {
   try {
     const callback = (err, event) => {
       if (err) {
-        console.error('[مستر] ⚠️ خطأ في الاستماع:', JSON.stringify(err));
+        console.error('[الأسطورة جان] ⚠️ خطأ في الاستماع:', JSON.stringify(err));
         const errMsg = String(err.message || err.error || err);
 
         // أخطاء جلسة → أعد تسجيل الدخول
@@ -259,7 +259,7 @@ async function startListening(api) {
         const senderID = String(event.senderID || '');
         const body = (event.body || '').substring(0, 50);
         if (type !== 'typ' && type !== 'read_receipt') {
-          console.log(`[مستر] 📩 type=${type} thread=${threadID} sender=${senderID} body="${body}"`);
+          console.log(`[الأسطورة جان] 📩 type=${type} thread=${threadID} sender=${senderID} body="${body}"`);
         }
         if (type === 'message' || type === 'message_reply') {
           handleMessage(api, event);
@@ -267,14 +267,14 @@ async function startListening(api) {
           handleEvent(api, event);
         }
       } catch (e) {
-        console.error('[مستر] ⚠️ خطأ في معالجة الحدث:', e.message);
+        console.error('[الأسطورة جان] ⚠️ خطأ في معالجة الحدث:', e.message);
       }
     };
 
     msgEmitter = await api.listenMqtt(callback);
-    console.log('[مستر] 👂 البوت يستمع...');
+    console.log('[الأسطورة جان] 👂 البوت يستمع...');
   } catch (e) {
-    console.error('[مستر] ❌ استثناء في startListening:', e.message);
+    console.error('[الأسطورة جان] ❌ استثناء في startListening:', e.message);
     scheduleRestart(10000);
   }
 }
@@ -292,7 +292,7 @@ function scheduleRestart(delay) {
 
   reconnectAttempts++;
   const actualDelay = Math.min(delay * Math.max(reconnectAttempts, 1), 120000);
-  console.log(`[مستر] ⏳ إعادة الاتصال بعد ${actualDelay / 1000}ث (محاولة ${reconnectAttempts})`);
+  console.log(`[الأسطورة جان] ⏳ إعادة الاتصال بعد ${actualDelay / 1000}ث (محاولة ${reconnectAttempts})`);
 
   setTimeout(() => {
     isRestarting = false;

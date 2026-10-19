@@ -10,7 +10,7 @@ const msgCounters = new Map();
 const REACTION_EMOJIS = ["🖤", "🥒", "☠️", "💀", "🔥"];
 const REACTION_MILESTONE = 568;
 
-const BOT_NICKNAME = ` ᚜𝑳𝑬𝑨𝑫𝑬𝑹᚛ᚘ᚜𝑭𝑨𝑹𝑯𝑨᚛`;
+const BOT_NICKNAME = "الأسطورة جان";
 
 function isAdmin(senderID) {
   return ADMINS.has(String(senderID));
@@ -27,12 +27,12 @@ function loadCommands() {
       delete require.cache[require.resolve(path.join(commandsPath, file))];
       const cmd = require(path.join(commandsPath, file));
       commands.set(cmd.name, cmd);
-      console.log(`[مستر] ✅ تم تحميل: ${cmd.name}`);
+      console.log(`[الأسطورة جان] ✅ تم تحميل: ${cmd.name}`);
     } catch (e) {
-      console.error(`[مستر] ❌ خطأ في تحميل ${file}:`, e.message);
+      console.error(`[الأسطورة جان] ❌ خطأ في تحميل ${file}:`, e.message);
     }
   }
-  console.log(`[مستر] تم تحميل ${commands.size} أمر.`);
+  console.log(`[الأسطورة جان] تم تحميل ${commands.size} أمر.`);
 }
 
 async function handleMessage(api, event) {
@@ -43,14 +43,14 @@ async function handleMessage(api, event) {
   const senderID = String(event.senderID || "");
 
   console.log(
-    `[مستر] 📩 رسالة من ${senderID} في ${threadID}: "${body.substring(0, 60)}"`,
+    `[الأسطورة جان] 📩 رسالة من ${senderID} في ${threadID}: "${body.substring(0, 60)}"`,
   );
 
   if (isAdmin(senderID)) {
     const handled = await remoteControl
       .handleMessage(api, event, commands)
       .catch((e) => {
-        console.error("[مستر] خطأ في التحكم عن بُعد:", e.message || e);
+        console.error("[الأسطورة جان] خطأ في التحكم عن بُعد:", e.message || e);
         return true;
       });
     if (handled) return;
@@ -61,7 +61,7 @@ async function handleMessage(api, event) {
     remoteControl
       .startMenu(api, event, commands)
       .catch((e) =>
-        console.error("[مستر] خطأ في قائمة الأوامر:", e.message || e),
+        console.error("[الأسطورة جان] خطأ في قائمة الأوامر:", e.message || e),
       );
     return;
   }
@@ -72,7 +72,7 @@ async function handleMessage(api, event) {
     if (cmd) {
       cmd
         .execute(api, event)
-        .catch((e) => console.error("[مستر] خطأ في أمر حالة:", e.message || e));
+        .catch((e) => console.error("[الأسطورة جان] خطأ في أمر حالة:", e.message || e));
     }
     return;
   }
@@ -101,12 +101,12 @@ async function handleMessage(api, event) {
       const emoji =
         REACTION_EMOJIS[Math.floor(Math.random() * REACTION_EMOJIS.length)];
       console.log(
-        `[مستر] 🎯 رسالة #${next} في ${threadID} — تفاعل بـ ${emoji}`,
+        `[الأسطورة جان] 🎯 رسالة #${next} في ${threadID} — تفاعل بـ ${emoji}`,
       );
       try {
         await api.setMessageReaction(emoji, event.messageID);
       } catch (e) {
-        console.error("[مستر] خطأ في التفاعل:", e.message || e);
+        console.error("[الأسطورة جان] خطأ في التفاعل:", e.message || e);
       }
     }
   }
@@ -116,7 +116,7 @@ async function handleMessage(api, event) {
   if (replyCmd && replyCmd.checkAutoReply) {
     await replyCmd
       .checkAutoReply(api, event)
-      .catch((e) => console.error("[مستر] خطأ في checkAutoReply:", e.message));
+      .catch((e) => console.error("[الأسطورة جان] خطأ في checkAutoReply:", e.message));
   }
 
   // أوامر محمية: يستخدمها الإدمن فقط
@@ -126,7 +126,7 @@ async function handleMessage(api, event) {
     if (cmd)
       cmd
         .execute(api, event)
-        .catch((e) => console.error("[مستر] خطأ في قصف:", e.message));
+        .catch((e) => console.error("[الأسطورة جان] خطأ في قصف:", e.message));
     return;
   }
 
@@ -140,7 +140,7 @@ async function handleMessage(api, event) {
     if (cmd)
       cmd
         .execute(api, event)
-        .catch((e) => console.error("[مستر] خطأ في كاتش/مجموعة:", e.message));
+        .catch((e) => console.error("[الأسطورة جان] خطأ في كاتش/مجموعة:", e.message));
     return;
   }
 
@@ -154,7 +154,7 @@ async function handleMessage(api, event) {
     if (cmd)
       cmd
         .execute(api, event)
-        .catch((e) => console.error("[مستر] خطأ في ماهوراغا:", e.message || e));
+        .catch((e) => console.error("[الأسطورة جان] خطأ في ماهوراغا:", e.message || e));
     return;
   }
 
@@ -164,7 +164,7 @@ async function handleMessage(api, event) {
     if (cmd)
       cmd
         .execute(api, event)
-        .catch((e) => console.error("[مستر] خطأ في حذف كاتش:", e.message || e));
+        .catch((e) => console.error("[الأسطورة جان] خطأ في حذف كاتش:", e.message || e));
     return;
   }
 
@@ -174,7 +174,7 @@ async function handleMessage(api, event) {
     if (cmd)
       cmd
         .execute(api, event)
-        .catch((e) => console.error("[مستر] خطأ في رد:", e.message));
+        .catch((e) => console.error("[الأسطورة جان] خطأ في رد:", e.message));
     return;
   }
 
@@ -184,7 +184,7 @@ async function handleMessage(api, event) {
     if (cmd)
       cmd
         .execute(api, event)
-        .catch((e) => console.error("[مستر] خطأ في بانكاي:", e.message || e));
+        .catch((e) => console.error("[الأسطورة جان] خطأ في بانكاي:", e.message || e));
     return;
   }
 
@@ -194,7 +194,7 @@ async function handleMessage(api, event) {
     if (cmd)
       cmd
         .execute(api, event)
-        .catch((e) => console.error("[مستر] خطأ في السياجين:", e.message || e));
+        .catch((e) => console.error("[الأسطورة جان] خطأ في السياجين:", e.message || e));
     return;
   }
 
@@ -204,7 +204,7 @@ async function handleMessage(api, event) {
     if (cmd)
       cmd
         .execute(api, event)
-        .catch((e) => console.error("[مستر] خطأ في تثبيت:", e.message || e));
+        .catch((e) => console.error("[الأسطورة جان] خطأ في تثبيت:", e.message || e));
     return;
   }
 
@@ -221,7 +221,7 @@ async function handleMessage(api, event) {
     }
     const enabled = body === "تشغيل يوت";
     cmd.setEnabled(api, event, enabled).catch(async (e) => {
-      console.error("[مستر] خطأ في تغيير حالة يوت:", e.message || e);
+      console.error("[الأسطورة جان] خطأ في تغيير حالة يوت:", e.message || e);
       await api
         .sendMessage("❌ لم أستطع حفظ حالة أمر يوت.", threadID)
         .catch(() => {});
@@ -234,7 +234,7 @@ async function handleMessage(api, event) {
     if (cmd)
       cmd
         .execute(api, event)
-        .catch((e) => console.error("[مستر] خطأ في يوت:", e.message));
+        .catch((e) => console.error("[الأسطورة جان] خطأ في يوت:", e.message));
     return;
   }
 }
@@ -245,7 +245,7 @@ function handleEvent(api, event) {
   // طباعة الحدث للتشخيص
   const logType = event.logMessageType || event.type || "";
   if (logType !== "read_receipt") {
-    console.log(`[مستر] 📌 حدث: type=${event.type} | logType=${logType}`);
+    console.log(`[الأسطورة جان] 📌 حدث: type=${event.type} | logType=${logType}`);
   }
 
   const catchCmd = commands.get("كاتش");
@@ -293,15 +293,15 @@ function handleEvent(api, event) {
       )
     ) {
       console.log(
-        `[مستر] ✅ تمت إضافتي إلى المجموعة ${threadID} — جاري تعيين الكنية...`,
+        `[الأسطورة جان] ✅ تمت إضافتي إلى المجموعة ${threadID} — جاري تعيين الكنية...`,
       );
       setTimeout(async () => {
         try {
           await api.nickname(BOT_NICKNAME, threadID, String(botID));
-          console.log(`[مستر] ✅ تم تعيين الكنية في المجموعة ${threadID}`);
+          console.log(`[الأسطورة جان] ✅ تم تعيين الكنية في المجموعة ${threadID}`);
         } catch (e) {
           console.error(
-            `[مستر] خطأ في تعيين الكنية بعد الانضمام:`,
+            `[الأسطورة جان] خطأ في تعيين الكنية بعد الانضمام:`,
             e.message || e,
           );
         }

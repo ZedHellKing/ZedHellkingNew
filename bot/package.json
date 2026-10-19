@@ -1,7 +1,7 @@
 {
-  "name": "mister-bot",
+  "name": "legend-jan-bot",
   "version": "1.0.0",
-  "description": "بوت مستر - بوت ماسنجر احترافي لا يتوقف",
+  "description": "بوت الأسطورة جان - بوت ماسنجر احترافي لا يتوقف",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
