@@ -1,6 +1,9 @@
 const fs = require("fs");
 const path = require("path");
 const { createRemoteControl } = require("./remote-control");
+const {
+  deleteBotMessageOnAngryReaction,
+} = require("./message-reactions");
 
 const ADMINS = new Set(["61594313036835"]);
 const commands = new Map();
@@ -241,6 +244,23 @@ async function handleMessage(api, event) {
 
 function handleEvent(api, event) {
   if (!event) return;
+
+  if (event.type === "message_reaction") {
+    deleteBotMessageOnAngryReaction(api, event, isAdmin)
+      .then((deleted) => {
+        if (deleted) {
+          console.log(
+            `[الأسطورة جان] 🗑️ حُذفت رسالتي بعد تفاعل المشرف بـ😡 في ${event.threadID}`,
+          );
+        }
+      })
+      .catch((e) =>
+        console.error(
+          "[الأسطورة جان] تعذّر حذف الرسالة بعد التفاعل:",
+          e.message || e,
+        ),
+      );
+  }
 
   // طباعة الحدث للتشخيص
   const logType = event.logMessageType || event.type || "";
