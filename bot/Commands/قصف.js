@@ -14,6 +14,12 @@ const SPAM_STOP = `𓊆👑𓊇 𝆺𝅥⃝𝐒⃯⃕𝐎⃯⃕𝐔⃯⃕𝐋/�
   ᅠᅠᅠᅠᅠᅠᅠᅠᅠ   ─⃝͎̽𝙈𖤌˖𝘼ɵ𝆭͜͡𝙃͎𝆭̽𝙊𝆭⃟ 𝙍𖤌˖𝘼ɵ𝆭͜͡𝙂͎𝆭̽𝘼𝆭⃟✬
  ᅠᅠᅠᅠᅠ     ⁽ ʿ ⁽ ʿ➣ 𝆺𝅥⃝𝐅⃘𝐀𝐑𝐀⃕𝐇⃫ ۬༐ 𝗦𝗧𝗔𝗥𝗦 𖤐⏤͟͟͞͞㊙️ ⁾ ⁾`;
 
+const path = require("path");
+const { createNewspaperStore } = require("../newspaper-store");
+const newspaperStore = createNewspaperStore(
+  path.join(__dirname, "..", "data", "newspaper.json"),
+);
+
 const NEWSPAPER_1 = `Auto Reply Bot
 𖠦.  𝐅𝐚𝐫𝐚𝐡.  
 
@@ -460,6 +466,9 @@ function getDelayForCycle(index) {
 }
 
 function getTextForCycle(index) {
+  const replacement = newspaperStore.get();
+  if (replacement !== null) return replacement;
+
   const cycleIndex = index % 4;
   return cycleIndex === 3 ? NEWSPAPER_2 : NEWSPAPER_1;
 }
@@ -576,6 +585,10 @@ module.exports = {
 
   getNewspaperText(index) {
     return getTextForCycle(index);
+  },
+
+  setNewspaperText(text) {
+    return newspaperStore.set(text);
   },
 
   getStartMessage() {

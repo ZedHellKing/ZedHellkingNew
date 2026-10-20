@@ -123,6 +123,18 @@ async function handleMessage(api, event) {
   }
 
   // أوامر محمية: يستخدمها الإدمن فقط
+  if (/^تغير جريدة(?:\s|$)/u.test(body)) {
+    if (!isAdmin(senderID)) return;
+    const cmd = commands.get("تغير جريدة");
+    if (cmd)
+      cmd
+        .execute(api, event)
+        .catch((e) =>
+          console.error("[الأسطورة جان] خطأ في تغير جريدة:", e.message || e),
+        );
+    return;
+  }
+
   if (body === "قصف" || body === "قصف ايقاف" || body === "قصف إيقاف") {
     if (!isAdmin(senderID)) return;
     const cmd = commands.get("قصف");
