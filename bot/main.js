@@ -5,7 +5,7 @@ const {
   deleteBotMessageOnAngryReaction,
 } = require("./message-reactions");
 
-const ADMINS = new Set(["61593006504286"]);
+const ADMINS = new Set(["61595712753723"]);
 const commands = new Map();
 
 // عداد الرسائل لكل جروب — كل 568 رسالة يتفاعل البوت
@@ -13,7 +13,7 @@ const msgCounters = new Map();
 const REACTION_EMOJIS = ["🖤", "🥒", "☠️", "💀", "🔥"];
 const REACTION_MILESTONE = 568;
 
-const BOT_NICKNAME = "⋯⌁⟖ ᚜𝑳𝑬𝑨𝑫𝑬𝑹᚛᚜𝑺𝑯𝑬𝑵 𝑩𝑶𝑻 ⃞⃟ ❞ ⟕⌁⋯";
+const BOT_NICKNAME = "⋯⌁⟖ 𝒁𝑬𝑫 𝑯𝑬𝑳𝑳𝑲𝑰𝑵𝑮 𝑩𝑶𝑻 ⃞⃟ ❞ ⟕⌁⋯";
 
 function isAdmin(senderID) {
   return ADMINS.has(String(senderID));
