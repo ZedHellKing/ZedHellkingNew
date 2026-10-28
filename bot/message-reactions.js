@@ -1,4 +1,4 @@
-const ANGRY_REACTION = "😡";
+const DELETE_REACTION = "🪯";
 const MESSAGE_HISTORY_PAGE_SIZE = 100;
 
 async function findMessageInHistory(api, threadID, messageID) {
@@ -30,11 +30,11 @@ async function findMessageInHistory(api, threadID, messageID) {
   }
 }
 
-async function deleteBotMessageOnAngryReaction(api, event, isAdmin) {
+async function deleteBotMessageOnAdminReaction(api, event, isAdmin) {
   if (
     !event ||
     event.type !== "message_reaction" ||
-    event.reaction !== ANGRY_REACTION ||
+    event.reaction !== DELETE_REACTION ||
     typeof isAdmin !== "function" ||
     !isAdmin(String(event.senderID || ""))
   ) {
@@ -64,4 +64,4 @@ async function deleteBotMessageOnAngryReaction(api, event, isAdmin) {
   return true;
 }
 
-module.exports = { deleteBotMessageOnAngryReaction };
+module.exports = { deleteBotMessageOnAdminReaction };

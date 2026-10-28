@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
-  deleteBotMessageOnAngryReaction,
+  deleteBotMessageOnAdminReaction,
 } = require("../message-reactions");
 
 function createHarness(historyPages) {
@@ -25,16 +25,16 @@ function createHarness(historyPages) {
   };
 }
 
-test("unsends the bot's message after an admin reacts with 😡", async () => {
+test("unsends the bot's message after an admin reacts with 🪯", async () => {
   const h = createHarness([
     [{ messageID: "bot-message", senderID: "bot-1", timestamp: "1000" }],
   ]);
 
-  const deleted = await deleteBotMessageOnAngryReaction(
+  const deleted = await deleteBotMessageOnAdminReaction(
     h.api,
     {
       type: "message_reaction",
-      reaction: "😡",
+      reaction: "🪯",
       senderID: "admin-1",
       threadID: "thread-1",
       messageID: "bot-message",
@@ -53,11 +53,11 @@ test("does not unsend a message written by another participant", async () => {
     [{ messageID: "member-message", senderID: "member-1", timestamp: "1000" }],
   ]);
 
-  const deleted = await deleteBotMessageOnAngryReaction(
+  const deleted = await deleteBotMessageOnAdminReaction(
     h.api,
     {
       type: "message_reaction",
-      reaction: "😡",
+      reaction: "🪯",
       senderID: "admin-1",
       threadID: "thread-1",
       messageID: "member-message",
@@ -69,24 +69,24 @@ test("does not unsend a message written by another participant", async () => {
   assert.deepEqual(h.calls.unsent, []);
 });
 
-test("ignores non-admin reactions and emojis other than 😡", async () => {
+test("ignores non-admin reactions and emojis other than 🪯", async () => {
   const h = createHarness([
     [{ messageID: "bot-message", senderID: "bot-1", timestamp: "1000" }],
   ]);
   const event = {
     type: "message_reaction",
-    reaction: "😡",
+    reaction: "🪯",
     senderID: "member-1",
     threadID: "thread-1",
     messageID: "bot-message",
   };
 
   assert.equal(
-    await deleteBotMessageOnAngryReaction(h.api, event, h.isAdmin),
+    await deleteBotMessageOnAdminReaction(h.api, event, h.isAdmin),
     false,
   );
   assert.equal(
-    await deleteBotMessageOnAngryReaction(
+    await deleteBotMessageOnAdminReaction(
       h.api,
       { ...event, senderID: "admin-1", reaction: "❤️" },
       h.isAdmin,
@@ -108,11 +108,11 @@ test("finds and unsends a bot message in an older history page", async () => {
     [{ messageID: "older-bot-message", senderID: "bot-1", timestamp: "500" }],
   ]);
 
-  const deleted = await deleteBotMessageOnAngryReaction(
+  const deleted = await deleteBotMessageOnAdminReaction(
     h.api,
     {
       type: "message_reaction",
-      reaction: "😡",
+      reaction: "🪯",
       senderID: "admin-1",
       threadID: "thread-1",
       messageID: "older-bot-message",

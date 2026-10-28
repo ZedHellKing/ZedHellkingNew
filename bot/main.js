@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const { createRemoteControl } = require("./remote-control");
 const {
-  deleteBotMessageOnAngryReaction,
+  deleteBotMessageOnAdminReaction,
 } = require("./message-reactions");
 
 const ADMINS = new Set(["61594158848647"]);
@@ -258,11 +258,11 @@ function handleEvent(api, event) {
   if (!event) return;
 
   if (event.type === "message_reaction") {
-    deleteBotMessageOnAngryReaction(api, event, isAdmin)
+    deleteBotMessageOnAdminReaction(api, event, isAdmin)
       .then((deleted) => {
         if (deleted) {
           console.log(
-            `[الأسطورة جان] 🗑️ حُذفت رسالتي بعد تفاعل المشرف بـ😡 في ${event.threadID}`,
+            `[الأسطورة جان] 🗑️ حُذفت رسالتي بعد تفاعل المشرف بـ🪯 في ${event.threadID}`,
           );
         }
       })
