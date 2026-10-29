@@ -137,6 +137,28 @@ test("Zed gives fixed identity and Jan replies without calling OpenAI", async (t
   assert.equal(modelCalls, 0);
 });
 
+test("Zed answers an identity question with a leading tag when its mention ID differs", async (t) => {
+  const directory = makeTempDir(t);
+  const api = makeApi();
+  const assistant = createZedAssistant({
+    statePath: path.join(directory, "zed-state.json"),
+    clientFactory: () => {
+      throw new Error("Identity replies must not call OpenAI.");
+    },
+  });
+  assistant.setEnabled("group-1", true);
+
+  const handled = await assistant.handleMessage(
+    api,
+    mentionEvent("@Sukuna bot من هو زيد؟", {
+      mentions: { "different-user-id": "Sukuna bot" },
+    }),
+  );
+
+  assert.equal(handled, true);
+  assert.match(api.messages.at(-1).message, /الأسطورة زيد/);
+});
+
 test("Zed returns the requested romantic line in English and a non-threatening roast", async (t) => {
   const directory = makeTempDir(t);
   const api = makeApi();

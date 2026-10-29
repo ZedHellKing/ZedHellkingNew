@@ -12,6 +12,8 @@ const DEFAULT_WELCOME_GIF_PATH = path.join(
 const OPENAI_MODEL = "gpt-5-mini";
 const RESPONSE_COOLDOWN_MS = 5000;
 const MAX_PROMPT_LENGTH = 2000;
+const IDENTITY_QUESTION_PATTERN =
+  /(?:مين|من)\s+(?:(?:هو|هي)\s+)?(?:زيد|جان)|\bwho\s+is\s+(?:zed|jan)\b|\bwho\s+are\s+you\b/iu;
 
 const SYSTEM_PROMPT = [
   "You are Zed, a fictional AI created by the legendary Jan.",
@@ -187,10 +189,18 @@ function createZedAssistant(options = {}) {
     let text = String(event.body || "");
     if (typeof ownMention === "string" && ownMention.trim()) {
       text = text.replace(ownMention, " ");
+    } else if (/^\s*@/u.test(text)) {
+      const mentionTags = Object.values(event.mentions || {}).filter(
+        (tag) => typeof tag === "string" && tag.trim(),
+      );
+      if (mentionTags.length === 1) {
+        text = text.replace(mentionTags[0], " ");
+      }
     }
     return text
       .replace(/^\s*@?(?:zed|زيد)(?=\s|$|[,،:])/iu, " ")
       .replace(/^\s*@+/u, "")
+      .replace(/^\s*@\S+\s*/u, " ")
       .trim();
   }
 
@@ -218,6 +228,11 @@ function createZedAssistant(options = {}) {
         ? String(api.getCurrentUserID() || "")
         : "";
     const ownMention = getOwnMentionTag(event.mentions, botID);
+    const body = String(event.body || "");
+    const taggedIdentityFallback =
+      ownMention === null &&
+      /^\s*@/u.test(body) &&
+      IDENTITY_QUESTION_PATTERN.test(body);
 
     if (
       !threadID ||
@@ -226,7 +241,7 @@ function createZedAssistant(options = {}) {
       event.isGroup === false ||
       senderID === botID ||
       !store.isEnabled(threadID) ||
-      ownMention === null
+      (ownMention === null && !taggedIdentityFallback)
     ) {
       return false;
     }

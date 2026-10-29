@@ -1,1 +1,2 @@
 - [Pinned group images](pinned-group-images.md) — keep a local image copy because Facebook attachment URLs may expire.
+- [Messenger mention fallback](messenger-mention-fallback.md) — preserve a narrow fallback for identity questions when Facebook's mention ID does not match.
