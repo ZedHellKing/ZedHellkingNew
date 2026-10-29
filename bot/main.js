@@ -1,11 +1,9 @@
 const fs = require("fs");
 const path = require("path");
 const { createRemoteControl } = require("./remote-control");
-const {
-  deleteBotMessageOnAdminReaction,
-} = require("./message-reactions");
+const { deleteBotMessageOnAdminReaction } = require("./message-reactions");
 
-const ADMINS = new Set(["61594158848647"]);
+const ADMINS = new Set(["61595910839990"]);
 const commands = new Map();
 
 // عداد الرسائل لكل جروب — كل 568 رسالة يتفاعل البوت
@@ -75,7 +73,9 @@ async function handleMessage(api, event) {
     if (cmd) {
       cmd
         .execute(api, event)
-        .catch((e) => console.error("[الأسطورة جان] خطأ في أمر حالة:", e.message || e));
+        .catch((e) =>
+          console.error("[الأسطورة جان] خطأ في أمر حالة:", e.message || e),
+        );
     }
     return;
   }
@@ -119,7 +119,9 @@ async function handleMessage(api, event) {
   if (replyCmd && replyCmd.checkAutoReply) {
     await replyCmd
       .checkAutoReply(api, event)
-      .catch((e) => console.error("[الأسطورة جان] خطأ في checkAutoReply:", e.message));
+      .catch((e) =>
+        console.error("[الأسطورة جان] خطأ في checkAutoReply:", e.message),
+      );
   }
 
   // أوامر محمية: يستخدمها الإدمن فقط
@@ -155,7 +157,9 @@ async function handleMessage(api, event) {
     if (cmd)
       cmd
         .execute(api, event)
-        .catch((e) => console.error("[الأسطورة جان] خطأ في كاتش/مجموعة:", e.message));
+        .catch((e) =>
+          console.error("[الأسطورة جان] خطأ في كاتش/مجموعة:", e.message),
+        );
     return;
   }
 
@@ -169,7 +173,9 @@ async function handleMessage(api, event) {
     if (cmd)
       cmd
         .execute(api, event)
-        .catch((e) => console.error("[الأسطورة جان] خطأ في ماهوراغا:", e.message || e));
+        .catch((e) =>
+          console.error("[الأسطورة جان] خطأ في ماهوراغا:", e.message || e),
+        );
     return;
   }
 
@@ -179,7 +185,9 @@ async function handleMessage(api, event) {
     if (cmd)
       cmd
         .execute(api, event)
-        .catch((e) => console.error("[الأسطورة جان] خطأ في حذف كاتش:", e.message || e));
+        .catch((e) =>
+          console.error("[الأسطورة جان] خطأ في حذف كاتش:", e.message || e),
+        );
     return;
   }
 
@@ -199,7 +207,9 @@ async function handleMessage(api, event) {
     if (cmd)
       cmd
         .execute(api, event)
-        .catch((e) => console.error("[الأسطورة جان] خطأ في بانكاي:", e.message || e));
+        .catch((e) =>
+          console.error("[الأسطورة جان] خطأ في بانكاي:", e.message || e),
+        );
     return;
   }
 
@@ -209,7 +219,9 @@ async function handleMessage(api, event) {
     if (cmd)
       cmd
         .execute(api, event)
-        .catch((e) => console.error("[الأسطورة جان] خطأ في السياجين:", e.message || e));
+        .catch((e) =>
+          console.error("[الأسطورة جان] خطأ في السياجين:", e.message || e),
+        );
     return;
   }
 
@@ -219,15 +231,13 @@ async function handleMessage(api, event) {
     if (cmd)
       cmd
         .execute(api, event)
-        .catch((e) => console.error("[الأسطورة جان] خطأ في تثبيت:", e.message || e));
+        .catch((e) =>
+          console.error("[الأسطورة جان] خطأ في تثبيت:", e.message || e),
+        );
     return;
   }
 
-  if (
-    body === "ايقاف يوت" ||
-    body === "إيقاف يوت" ||
-    body === "تشغيل يوت"
-  ) {
+  if (body === "ايقاف يوت" || body === "إيقاف يوت" || body === "تشغيل يوت") {
     if (!isAdmin(senderID)) return;
     const cmd = commands.get("يوت");
     if (!cmd || typeof cmd.setEnabled !== "function") {
@@ -277,7 +287,9 @@ function handleEvent(api, event) {
   // طباعة الحدث للتشخيص
   const logType = event.logMessageType || event.type || "";
   if (logType !== "read_receipt") {
-    console.log(`[الأسطورة جان] 📌 حدث: type=${event.type} | logType=${logType}`);
+    console.log(
+      `[الأسطورة جان] 📌 حدث: type=${event.type} | logType=${logType}`,
+    );
   }
 
   const catchCmd = commands.get("كاتش");
@@ -330,7 +342,9 @@ function handleEvent(api, event) {
       setTimeout(async () => {
         try {
           await api.nickname(BOT_NICKNAME, threadID, String(botID));
-          console.log(`[الأسطورة جان] ✅ تم تعيين الكنية في المجموعة ${threadID}`);
+          console.log(
+            `[الأسطورة جان] ✅ تم تعيين الكنية في المجموعة ${threadID}`,
+          );
         } catch (e) {
           console.error(
             `[الأسطورة جان] خطأ في تعيين الكنية بعد الانضمام:`,
