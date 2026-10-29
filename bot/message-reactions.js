@@ -52,9 +52,11 @@ async function deleteBotMessageOnAdminReaction(api, event, isAdmin) {
   if (
     typeof api.getCurrentUserID !== "function" ||
     typeof api.getThreadHistory !== "function" ||
-    typeof api.unsent !== "function"
+    typeof api.unsendMessage !== "function"
   ) {
-    throw new Error("Messenger API is missing message history or unsend support.");
+    throw new Error(
+      "Messenger API is missing getThreadHistory or unsendMessage support.",
+    );
   }
 
   const botID = String(api.getCurrentUserID() || "");
@@ -64,7 +66,7 @@ async function deleteBotMessageOnAdminReaction(api, event, isAdmin) {
 
   if (!target || String(target.senderID) !== botID) return false;
 
-  await api.unsent(messageID, threadID);
+  await api.unsendMessage(messageID);
   return true;
 }
 

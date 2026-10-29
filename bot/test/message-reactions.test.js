@@ -13,8 +13,8 @@ function createHarness(historyPages) {
       calls.history.push({ threadID, amount, timestamp });
       return historyPages[pageIndex++] || [];
     },
-    async unsent(messageID, threadID) {
-      calls.unsent.push({ messageID, threadID });
+    async unsendMessage(messageID) {
+      calls.unsent.push(messageID);
     },
   };
 
@@ -44,9 +44,7 @@ test("unsends the bot's message after an admin reacts with 🪯", async () => {
   );
 
   assert.equal(deleted, true);
-  assert.deepEqual(h.calls.unsent, [
-    { messageID: "bot-message", threadID: "thread-1" },
-  ]);
+  assert.deepEqual(h.calls.unsent, ["bot-message"]);
 });
 
 test("does not unsend a message written by another participant", async () => {
@@ -127,7 +125,5 @@ test("finds and unsends a bot message in an older history page", async () => {
   assert.equal(deleted, true);
   assert.equal(h.calls.history.length, 2);
   assert.equal(h.calls.history[1].timestamp, 900);
-  assert.deepEqual(h.calls.unsent, [
-    { messageID: "older-bot-message", threadID: "thread-1" },
-  ]);
+  assert.deepEqual(h.calls.unsent, ["older-bot-message"]);
 });
