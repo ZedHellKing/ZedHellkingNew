@@ -3,7 +3,10 @@ const assert = require("node:assert/strict");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const { createNewspaperStore } = require("../newspaper-store");
+const {
+  createNewspaperStore,
+  getSharedNewspaperStore,
+} = require("../newspaper-store");
 const { createNewspaperTextProvider } = require("../Commands/قصف");
 const {
   createNewspaperCommand,
@@ -29,7 +32,12 @@ test("a changed newspaper replaces every qasf message and survives restart", asy
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
   const filePath = path.join(directory, "newspaper.json");
   const text = "جريدة جديدة\nسطر ثانٍ ✨\nأي نص يكتبه المشرف";
-  const provider = createNewspaperTextProvider(createNewspaperStore(filePath));
+  const provider = createNewspaperTextProvider(
+    getSharedNewspaperStore(filePath),
+  );
+  const qasfReader = createNewspaperTextProvider(
+    getSharedNewspaperStore(filePath),
+  );
 
   await createNewspaperCommand(provider).execute(
     { async sendMessage() {} },
@@ -37,7 +45,7 @@ test("a changed newspaper replaces every qasf message and survives restart", asy
   );
 
   for (let index = 0; index < 8; index += 1) {
-    assert.equal(provider.get(index), text);
+    assert.equal(qasfReader.get(index), text);
   }
 
   const afterRestart = createNewspaperTextProvider(

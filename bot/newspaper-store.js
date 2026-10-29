@@ -1,6 +1,9 @@
 const fs = require("fs");
 const path = require("path");
 
+const sharedStores = new Map();
+const DEFAULT_NEWSPAPER_PATH = path.join(__dirname, "data", "newspaper.json");
+
 function createNewspaperStore(filePath) {
   const resolvedPath = path.resolve(filePath);
   let currentText = null;
@@ -46,4 +49,12 @@ function createNewspaperStore(filePath) {
   };
 }
 
-module.exports = { createNewspaperStore };
+function getSharedNewspaperStore(filePath = DEFAULT_NEWSPAPER_PATH) {
+  const resolvedPath = path.resolve(filePath);
+  if (!sharedStores.has(resolvedPath)) {
+    sharedStores.set(resolvedPath, createNewspaperStore(resolvedPath));
+  }
+  return sharedStores.get(resolvedPath);
+}
+
+module.exports = { createNewspaperStore, getSharedNewspaperStore };

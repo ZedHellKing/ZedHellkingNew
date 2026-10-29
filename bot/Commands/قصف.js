@@ -1,5 +1,4 @@
-const path = require("path");
-const { createNewspaperStore } = require("../newspaper-store");
+const { getSharedNewspaperStore } = require("../newspaper-store");
 
 const SPAM_START = `🕸 𝆺𝅥⃝𝗕𝗢𝗥𝗡 𝗧𝗢 𝗥𝗨𝗟𝗘 ༐ 𓊆꙰🌸꙰𓊇 𝑫𝑼𝑵𝒀𝑨 ⃞⃟ ┊ 𝐂𝐑⃘𝐔⃪𝐒𝐇͡𝐈͜𝐍𝐆͠ 𝐇̸⃫𝐔𝐌⃝𝐀𝐍𝐈꙰𝐓𝐘̅ 🕸〙 ┊
 
@@ -130,9 +129,7 @@ function getDefaultTextForCycle(index) {
   return cycleIndex === 3 ? NEWSPAPER_2 : NEWSPAPER_1;
 }
 
-const newspaperStore = createNewspaperStore(
-  path.join(__dirname, "..", "data", "newspaper.json"),
-);
+const newspaperStore = getSharedNewspaperStore();
 
 function createNewspaperTextProvider(store) {
   return {
@@ -197,7 +194,6 @@ async function spamLoop(api, threadID) {
   let cycleIndex = 0;
   while (activeLoops.get(threadID)) {
     try {
-      const text = getTextForCycle(cycleIndex);
       const delay = getDelayForCycle(cycleIndex);
 
       // محاكاة الكتابة البشرية (3-6 ثواني)
@@ -206,6 +202,7 @@ async function spamLoop(api, threadID) {
       await sleep(typingTime);
       await sendTyping(api, threadID, false);
 
+      const text = getTextForCycle(cycleIndex);
       await api.sendMessage(text, threadID);
       console.log(
         `[قصف] ✍️ جريدة #${cycleIndex + 1} (كتابة ${(typingTime / 1000).toFixed(1)}ث) | تأخير ${(delay / 1000).toFixed(0)}ث`,
