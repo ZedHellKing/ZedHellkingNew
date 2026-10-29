@@ -35,7 +35,8 @@ test("unsends the bot's message after an admin reacts with 🪯", async () => {
     {
       type: "message_reaction",
       reaction: "🪯",
-      senderID: "admin-1",
+      senderID: "bot-1",
+      userID: "admin-1",
       threadID: "thread-1",
       messageID: "bot-message",
     },
@@ -58,7 +59,8 @@ test("does not unsend a message written by another participant", async () => {
     {
       type: "message_reaction",
       reaction: "🪯",
-      senderID: "admin-1",
+      senderID: "member-1",
+      userID: "admin-1",
       threadID: "thread-1",
       messageID: "member-message",
     },
@@ -76,7 +78,8 @@ test("ignores non-admin reactions and emojis other than 🪯", async () => {
   const event = {
     type: "message_reaction",
     reaction: "🪯",
-    senderID: "member-1",
+    senderID: "bot-1",
+    userID: "member-1",
     threadID: "thread-1",
     messageID: "bot-message",
   };
@@ -88,7 +91,7 @@ test("ignores non-admin reactions and emojis other than 🪯", async () => {
   assert.equal(
     await deleteBotMessageOnAdminReaction(
       h.api,
-      { ...event, senderID: "admin-1", reaction: "❤️" },
+      { ...event, userID: "admin-1", reaction: "❤️" },
       h.isAdmin,
     ),
     false,
@@ -113,7 +116,8 @@ test("finds and unsends a bot message in an older history page", async () => {
     {
       type: "message_reaction",
       reaction: "🪯",
-      senderID: "admin-1",
+      senderID: "bot-1",
+      userID: "admin-1",
       threadID: "thread-1",
       messageID: "older-bot-message",
     },

@@ -31,12 +31,16 @@ async function findMessageInHistory(api, threadID, messageID) {
 }
 
 async function deleteBotMessageOnAdminReaction(api, event, isAdmin) {
+  const reactorID = String(
+    event?.userID || event?.reactorID || event?.senderID || "",
+  );
+
   if (
     !event ||
     event.type !== "message_reaction" ||
     event.reaction !== DELETE_REACTION ||
     typeof isAdmin !== "function" ||
-    !isAdmin(String(event.senderID || ""))
+    !isAdmin(reactorID)
   ) {
     return false;
   }
