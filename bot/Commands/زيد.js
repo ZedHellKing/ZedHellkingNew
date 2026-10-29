@@ -4,6 +4,34 @@ const { createZedAssistant } = require("../zed-assistant");
 
 const COMMAND_PATTERN = /^زيد\s+(تشغيل|ايقاف|إيقاف)$/u;
 
+function normalizeFacebookID(id) {
+  return String(id || "")
+    .replace(/^(?:fb)?id[:.]/iu, "")
+    .trim();
+}
+
+async function isAuthorizedGroupController(api, event, isAdmin) {
+  const senderID = String(event.senderID || "");
+  if (typeof isAdmin === "function" && isAdmin(senderID)) return true;
+  if (event.isGroup === false || typeof api.getThreadInfo !== "function") {
+    return false;
+  }
+
+  try {
+    const info = await api.getThreadInfo(String(event.threadID || ""));
+    const adminIDs = Array.isArray(info && info.adminIDs) ? info.adminIDs : [];
+    return adminIDs.some((admin) => {
+      const id =
+        typeof admin === "object" && admin !== null
+          ? admin.id || admin.userID || admin.userFbId
+          : admin;
+      return normalizeFacebookID(id) === normalizeFacebookID(senderID);
+    });
+  } catch {
+    return false;
+  }
+}
+
 function createZedCommand(options = {}) {
   const assistant = options.assistant || createZedAssistant(options);
 
@@ -13,14 +41,20 @@ function createZedCommand(options = {}) {
     async execute(api, event, isAdmin) {
       const body = String(event.body || "").trim();
       const match = COMMAND_PATTERN.exec(body);
-      if (!match || typeof isAdmin !== "function" || !isAdmin(event.senderID)) {
-        return false;
-      }
+      if (!match) return false;
 
       const threadID = String(event.threadID || "");
       if (!threadID) return false;
       if (event.isGroup === false) {
         await api.sendMessage("⚠️ أوامر زيد تعمل داخل المجموعات فقط.", threadID);
+        return true;
+      }
+
+      if (!(await isAuthorizedGroupController(api, event, isAdmin))) {
+        await api.sendMessage(
+          "⚠️ أمر زيد متاح لمشرفي المجموعة فقط.",
+          threadID,
+        );
         return true;
       }
 

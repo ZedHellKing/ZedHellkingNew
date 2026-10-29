@@ -1,4 +1,10 @@
 // ─── صمّام الأمان العالمي: لا يموت البوت أبداً ───
+let botApi = null;
+let msgEmitter = null;
+let isRestarting = false;
+let reconnectAttempts = 0;
+let heartbeatInterval = null;
+
 process.on('uncaughtException', (err) => {
   console.error('[الأسطورة جان] 🔴 خطأ غير متوقع:', err && err.message ? err.message : String(err));
   console.log('[الأسطورة جان] 🟢 استمرار... إعادة الاتصال خلال 10 ثواني');
@@ -70,13 +76,7 @@ app.listen(PORT, () => {
   console.log(`[الأسطورة جان] 🌐 خادم Uptime يعمل على المنفذ ${PORT}`);
 });
 
-let botApi = null;
-let msgEmitter = null;
-let isRestarting = false;
-let reconnectAttempts = 0;
-
 // ─── Heartbeat كل 30 ثانية ───
-let heartbeatInterval = null;
 function startHeartbeat(api) {
   if (heartbeatInterval) clearInterval(heartbeatInterval);
   heartbeatInterval = setInterval(() => {

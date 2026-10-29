@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const {
-  OPENROUTER_MODEL,
+  OPENAI_MODEL,
   createZedAssistant,
 } = require("../zed-assistant");
 const { createZedCommand } = require("../Commands/زيد");
@@ -76,7 +76,7 @@ test("Zed only answers a real mention in an enabled group", async (t) => {
   await assistant.handleMessage(api, mentionEvent("Zed explain gravity"));
   assert.equal(api.messages.at(-1).message, "Gravity bends spacetime.");
   assert.equal(requests.length, 1);
-  assert.equal(requests[0].model, OPENROUTER_MODEL);
+  assert.equal(requests[0].model, OPENAI_MODEL);
 });
 
 test("a bare mention gets a short reply even when it has no question", async (t) => {
@@ -107,7 +107,7 @@ test("Zed's group enable state persists and remains separate by group", (t) => {
   assert.equal(createZedAssistant({ statePath }).isEnabled("group-1"), false);
 });
 
-test("Zed gives fixed identity and Jan replies without calling OpenRouter", async (t) => {
+test("Zed gives fixed identity and Jan replies without calling OpenAI", async (t) => {
   const directory = makeTempDir(t);
   const api = makeApi();
   let modelCalls = 0;
@@ -120,12 +120,20 @@ test("Zed gives fixed identity and Jan replies without calling OpenRouter", asyn
   });
   assistant.setEnabled("group-1", true);
 
-  await assistant.handleMessage(api, mentionEvent("Zed مين أنت؟"));
+  await assistant.handleMessage(api, mentionEvent("Zed مين هو زيد؟"));
   assert.match(api.messages.at(-1).message, /الأسطورة زيد/);
-  await assistant.handleMessage(api, mentionEvent("Zed هل تعرف جان؟", {
+  await assistant.handleMessage(api, mentionEvent("Zed من هو جان؟", {
     senderID: "member-2",
   }));
-  assert.match(api.messages.at(-1).message, /الأسطورة جان/);
+  assert.match(api.messages.at(-1).message, /مدمر العوالم والبشرية/);
+  await assistant.handleMessage(api, mentionEvent("Zed who is Jan?", {
+    senderID: "member-3",
+  }));
+  assert.match(api.messages.at(-1).message, /destroyer of worlds and humanity/);
+  await assistant.handleMessage(api, mentionEvent("Zed who is Zed?", {
+    senderID: "member-4",
+  }));
+  assert.match(api.messages.at(-1).message, /brings humanity to its knees/);
   assert.equal(modelCalls, 0);
 });
 
@@ -146,8 +154,14 @@ test("Zed returns the requested romantic line in English and a non-threatening r
     senderID: "member-2",
   }));
   const roast = api.messages.at(-1).message;
+  assert.match(roast, /هل تقصد نفسك يا ابن المضحكة/);
   assert.match(roast, /أذكى/);
   assert.doesNotMatch(roast, /دعس|اركبك|أقتلك|أضربك/);
+
+  await assistant.handleMessage(api, mentionEvent("Zed you are an idiot", {
+    senderID: "member-3",
+  }));
+  assert.match(api.messages.at(-1).message, /talking about yourself/);
 });
 
 test("enabling Zed welcomes new members with the GIF and a mention", async (t) => {
@@ -208,4 +222,32 @@ test("only an admin can change Zed's group state", async (t) => {
     (senderID) => senderID === "admin-1",
   );
   assert.equal(assistant.isEnabled("group-1"), false);
+});
+
+test("a group admin can enable Zed without being a global bot admin", async (t) => {
+  const directory = makeTempDir(t);
+  const assistant = createZedAssistant({
+    statePath: path.join(directory, "zed-state.json"),
+  });
+  const command = createZedCommand({ assistant });
+  const api = {
+    ...makeApi(),
+    async getThreadInfo() {
+      return { adminIDs: ["fbid:member-1"] };
+    },
+  };
+
+  const handled = await command.execute(
+    api,
+    {
+      body: "زيد تشغيل",
+      threadID: "group-1",
+      senderID: "member-1",
+      isGroup: true,
+    },
+    () => false,
+  );
+
+  assert.equal(handled, true);
+  assert.equal(assistant.isEnabled("group-1"), true);
 });

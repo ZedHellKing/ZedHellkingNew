@@ -48,7 +48,6 @@ async function handleMessage(api, event) {
   );
 
   if (/^زيد\s+(?:تشغيل|ايقاف|إيقاف)$/u.test(body)) {
-    if (!isAdmin(senderID)) return;
     const zedCommand = commands.get("زيد");
     if (zedCommand) {
       zedCommand
