@@ -164,6 +164,30 @@ test("Zed returns the requested romantic line in English and a non-threatening r
   assert.match(api.messages.at(-1).message, /talking about yourself/);
 });
 
+test("Zed explains AI usage limits instead of claiming a temporary connection error", async (t) => {
+  const directory = makeTempDir(t);
+  const api = makeApi();
+  const assistant = createZedAssistant({
+    statePath: path.join(directory, "zed-state.json"),
+    clientFactory: () => ({
+      chat: {
+        completions: {
+          async create() {
+            throw Object.assign(new Error("rate limit"), { status: 429 });
+          },
+        },
+      },
+    }),
+    logger: { error() {} },
+  });
+  assistant.setEnabled("group-1", true);
+
+  await assistant.handleMessage(api, mentionEvent("Zed explain gravity"));
+
+  assert.match(api.messages.at(-1).message, /current AI usage limit/);
+  assert.doesNotMatch(api.messages.at(-1).message, /مشكلة مؤقتة/);
+});
+
 test("enabling Zed welcomes new members with the GIF and a mention", async (t) => {
   const directory = makeTempDir(t);
   const statePath = path.join(directory, "zed-state.json");

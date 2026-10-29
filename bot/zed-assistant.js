@@ -257,7 +257,12 @@ function createZedAssistant(options = {}) {
           "[زيد] تعذر الرد من OpenAI:",
           error.status || error.code || error.name || "request failed",
         );
-        reply = "واجه زيد مشكلة مؤقتة في الاتصال؛ جرّب سؤالك مرة أخرى لاحقًا.";
+        reply =
+          error.status === 429
+            ? isEnglishOnly(text)
+              ? "Zed has reached the current AI usage limit. Please try again later."
+              : "وصل زيد إلى حد الاستخدام الحالي لخدمة الذكاء الاصطناعي؛ جرّب لاحقًا."
+            : "واجه زيد مشكلة مؤقتة في الاتصال؛ جرّب سؤالك مرة أخرى لاحقًا.";
       }
     }
 
