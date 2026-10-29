@@ -47,6 +47,19 @@ async function handleMessage(api, event) {
     `[الأسطورة جان] 📩 رسالة من ${senderID} في ${threadID}: "${body.substring(0, 60)}"`,
   );
 
+  if (/^زيد\s+(?:تشغيل|ايقاف|إيقاف)$/u.test(body)) {
+    if (!isAdmin(senderID)) return;
+    const zedCommand = commands.get("زيد");
+    if (zedCommand) {
+      zedCommand
+        .execute(api, event, isAdmin)
+        .catch((e) =>
+          console.error("[الأسطورة جان] خطأ في أمر زيد:", e.message || e),
+        );
+    }
+    return;
+  }
+
   if (isAdmin(senderID)) {
     const handled = await remoteControl
       .handleMessage(api, event, commands)
@@ -262,6 +275,13 @@ async function handleMessage(api, event) {
         .catch((e) => console.error("[الأسطورة جان] خطأ في يوت:", e.message));
     return;
   }
+
+  const zedCommand = commands.get("زيد");
+  if (zedCommand && typeof zedCommand.handleMessage === "function") {
+    zedCommand.handleMessage(api, event).catch((e) =>
+      console.error("[الأسطورة جان] خطأ في رد زيد:", e.message || e),
+    );
+  }
 }
 
 function handleEvent(api, event) {
@@ -352,6 +372,13 @@ function handleEvent(api, event) {
           );
         }
       }, 2000);
+    }
+
+    const zedCommand = commands.get("زيد");
+    if (zedCommand && typeof zedCommand.handleJoinEvent === "function") {
+      zedCommand.handleJoinEvent(api, event).catch((e) =>
+        console.error("[الأسطورة جان] خطأ في ترحيب زيد:", e.message || e),
+      );
     }
   }
 }

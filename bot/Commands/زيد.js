@@ -1,0 +1,55 @@
+"use strict";
+
+const { createZedAssistant } = require("../zed-assistant");
+
+const COMMAND_PATTERN = /^زيد\s+(تشغيل|ايقاف|إيقاف)$/u;
+
+function createZedCommand(options = {}) {
+  const assistant = options.assistant || createZedAssistant(options);
+
+  return {
+    name: "زيد",
+
+    async execute(api, event, isAdmin) {
+      const body = String(event.body || "").trim();
+      const match = COMMAND_PATTERN.exec(body);
+      if (!match || typeof isAdmin !== "function" || !isAdmin(event.senderID)) {
+        return false;
+      }
+
+      const threadID = String(event.threadID || "");
+      if (!threadID) return false;
+      if (event.isGroup === false) {
+        await api.sendMessage("⚠️ أوامر زيد تعمل داخل المجموعات فقط.", threadID);
+        return true;
+      }
+
+      const enabled = match[1] === "تشغيل";
+      const changed = assistant.setEnabled(threadID, enabled);
+      const message = enabled
+        ? changed
+          ? "✅ تم تشغيل زيد في هذه المجموعة. سيرد عند منشنه ويرحب بالأعضاء الجدد."
+          : "ℹ️ زيد يعمل بالفعل في هذه المجموعة."
+        : changed
+          ? "⏹️ تم إيقاف زيد في هذه المجموعة؛ لن يرد على المنشن أو يرسل ترحيبًا."
+          : "ℹ️ زيد متوقف بالفعل في هذه المجموعة.";
+      await api.sendMessage(message, threadID);
+      return true;
+    },
+
+    handleMessage(api, event) {
+      return assistant.handleMessage(api, event);
+    },
+
+    handleJoinEvent(api, event) {
+      return assistant.handleJoinEvent(api, event);
+    },
+
+    isEnabled(threadID) {
+      return assistant.isEnabled(threadID);
+    },
+  };
+}
+
+const command = createZedCommand();
+module.exports = { ...command, createZedCommand };

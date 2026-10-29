@@ -33,6 +33,7 @@ node_modules
 /coverage
 /bot/data/youtube-state.json*
 /bot/data/newspaper.json
+/bot/data/zed-state.json
 /libpeerconnection.log
 npm-debug.log
 yarn-error.log
