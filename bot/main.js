@@ -60,6 +60,17 @@ async function handleMessage(api, event) {
     return;
   }
 
+  const zedCommand = commands.get("زيد");
+  if (zedCommand && typeof zedCommand.handleMessage === "function") {
+    const handledByZed = await zedCommand
+      .handleMessage(api, event)
+      .catch((e) => {
+        console.error("[الأسطورة جان] خطأ في رد زيد:", e.message || e);
+        return false;
+      });
+    if (handledByZed) return;
+  }
+
   if (isAdmin(senderID)) {
     const handled = await remoteControl
       .handleMessage(api, event, commands)
@@ -276,12 +287,6 @@ async function handleMessage(api, event) {
     return;
   }
 
-  const zedCommand = commands.get("زيد");
-  if (zedCommand && typeof zedCommand.handleMessage === "function") {
-    zedCommand.handleMessage(api, event).catch((e) =>
-      console.error("[الأسطورة جان] خطأ في رد زيد:", e.message || e),
-    );
-  }
 }
 
 function handleEvent(api, event) {

@@ -81,6 +81,21 @@ function isEnglishOnly(text) {
   return /[A-Za-z]/.test(text) && !/[\u0600-\u06ff]/.test(text);
 }
 
+function normalizeFacebookID(id) {
+  return String(id || "")
+    .replace(/(?:fb)?id[:.]/iu, "")
+    .trim();
+}
+
+function getOwnMentionTag(mentions, botID) {
+  if (!mentions || typeof mentions !== "object") return null;
+  const normalizedBotID = normalizeFacebookID(botID);
+  for (const [mentionID, tag] of Object.entries(mentions)) {
+    if (normalizeFacebookID(mentionID) === normalizedBotID) return tag;
+  }
+  return null;
+}
+
 function getSpecialResponse(text) {
   const normalized = String(text || "").trim();
   const asksWhoIsLoved = /(?:مين|من).*(?:أكثر|اكثر|أكتر|اكتر).*(?:يحب|بيحب|تحب)|who.*(?:love|loved)|who do you love/iu.test(
@@ -120,35 +135,6 @@ function getSpecialResponse(text) {
   return null;
 }
 
-function isImageRequest(text) {
-  return /صور|صورة|صوره|صوّر|\b(?:photos?|pictures?|images?|pics?)\b/iu.test(
-    String(text || ""),
-  );
-}
-
-function createPinterestSearchReply(text) {
-  const query = String(text || "")
-    .replace(
-      /هات(?:لي)?|جيب(?:لي)?|ارسل(?:لي)?|أرسل(?:لي)?|ابعث|وريني|عايز|عاوز|أريد|اريد|ممكن|صور|صورة|صوره|صوّر/giu,
-      " ",
-    )
-    .replace(
-      /\b(?:photos?|pictures?|images?|pics?|show|send|please|me|of)\b/giu,
-      " ",
-    )
-    .replace(/@\S+/gu, " ")
-    .replace(/[^\p{L}\p{N}\s'-]/gu, " ")
-    .replace(/\s+/gu, " ")
-    .trim();
-
-  if (!query) {
-    return "اكتب نوع الصور بعد منشن زيد، مثل: «زيد صور قطط».";
-  }
-
-  const searchUrl = `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(query)}`;
-  return `ما أقدر أرفق صور Pinterest مباشرة من دون ربط الحساب، لكن هذا رابط البحث عن «${query}»:\n${searchUrl}`;
-}
-
 function createOpenRouterClient() {
   if (!process.env.OPENROUTER_API_KEY) {
     throw new Error("OPENROUTER_API_KEY is not configured.");
@@ -178,9 +164,8 @@ function createZedAssistant(options = {}) {
     return modelClient;
   }
 
-  function getQuestionText(event, botID) {
+  function getQuestionText(event, ownMention) {
     let text = String(event.body || "");
-    const ownMention = event.mentions && event.mentions[botID];
     if (typeof ownMention === "string" && ownMention.trim()) {
       text = text.replace(ownMention, " ");
     }
@@ -213,6 +198,7 @@ function createZedAssistant(options = {}) {
       typeof api.getCurrentUserID === "function"
         ? String(api.getCurrentUserID() || "")
         : "";
+    const ownMention = getOwnMentionTag(event.mentions, botID);
 
     if (
       !threadID ||
@@ -221,16 +207,9 @@ function createZedAssistant(options = {}) {
       event.isGroup === false ||
       senderID === botID ||
       !store.isEnabled(threadID) ||
-      !event.mentions ||
-      !Object.prototype.hasOwnProperty.call(event.mentions, botID)
+      ownMention === null
     ) {
       return false;
-    }
-
-    const text = getQuestionText(event, botID);
-    if (!text) {
-      await api.sendMessage("أنا زيد. اذكر سؤالك وسأجيبك.", threadID);
-      return true;
     }
 
     const cooldownKey = `${threadID}:${senderID}`;
@@ -243,9 +222,13 @@ function createZedAssistant(options = {}) {
     }
     lastReplyAt.set(cooldownKey, currentTime);
 
-    let reply = isImageRequest(text)
-      ? createPinterestSearchReply(text)
-      : getSpecialResponse(text);
+    const text = getQuestionText(event, ownMention);
+    if (!text) {
+      await api.sendMessage("أنا زيد. اذكر سؤالك وسأجيبك.", threadID);
+      return true;
+    }
+
+    let reply = getSpecialResponse(text);
 
     if (!reply) {
       try {
@@ -340,7 +323,5 @@ module.exports = {
   SYSTEM_PROMPT,
   createGroupStateStore,
   createZedAssistant,
-  createPinterestSearchReply,
   getSpecialResponse,
-  isImageRequest,
 };

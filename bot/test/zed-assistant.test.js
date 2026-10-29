@@ -39,7 +39,7 @@ function mentionEvent(body, overrides = {}) {
     threadID: "group-1",
     senderID: "member-1",
     isGroup: true,
-    mentions: { "zed-bot": "Zed" },
+    mentions: { "fbid:zed-bot": "Zed" },
     ...overrides,
   };
 }
@@ -77,6 +77,20 @@ test("Zed only answers a real mention in an enabled group", async (t) => {
   assert.equal(api.messages.at(-1).message, "Gravity bends spacetime.");
   assert.equal(requests.length, 1);
   assert.equal(requests[0].model, OPENROUTER_MODEL);
+});
+
+test("a bare mention gets a short reply even when it has no question", async (t) => {
+  const directory = makeTempDir(t);
+  const api = makeApi();
+  const assistant = createZedAssistant({
+    statePath: path.join(directory, "zed-state.json"),
+    now: () => 10000,
+  });
+  assistant.setEnabled("group-1", true);
+
+  await assistant.handleMessage(api, mentionEvent("@Zed"));
+
+  assert.equal(api.messages.at(-1).message, "أنا زيد. اذكر سؤالك وسأجيبك.");
 });
 
 test("Zed's group enable state persists and remains separate by group", (t) => {
@@ -134,21 +148,6 @@ test("Zed returns the requested romantic line in English and a non-threatening r
   const roast = api.messages.at(-1).message;
   assert.match(roast, /أذكى/);
   assert.doesNotMatch(roast, /دعس|اركبك|أقتلك|أضربك/);
-});
-
-test("image requests return a Pinterest search link without claiming an image was sent", async (t) => {
-  const directory = makeTempDir(t);
-  const api = makeApi();
-  const assistant = createZedAssistant({
-    statePath: path.join(directory, "zed-state.json"),
-  });
-  assistant.setEnabled("group-1", true);
-
-  await assistant.handleMessage(api, mentionEvent("Zed هات صور قطط"));
-  const reply = api.messages.at(-1).message;
-  assert.match(reply, /pinterest\.com\/search\/pins/);
-  assert.match(reply, /قطط/);
-  assert.match(reply, /ما أقدر أرفق صور/);
 });
 
 test("enabling Zed welcomes new members with the GIF and a mention", async (t) => {
