@@ -1,3 +1,6 @@
+const path = require("path");
+const { createNewspaperStore } = require("../newspaper-store");
+
 const SPAM_START = `🕸 𝆺𝅥⃝𝗕𝗢𝗥𝗡 𝗧𝗢 𝗥𝗨𝗟𝗘 ༐ 𓊆꙰🌸꙰𓊇 𝑫𝑼𝑵𝒀𝑨 ⃞⃟ ┊ 𝐂𝐑⃘𝐔⃪𝐒𝐇͡𝐈͜𝐍𝐆͠ 𝐇̸⃫𝐔𝐌⃝𝐀𝐍𝐈꙰𝐓𝐘̅ 🕸〙 ┊
 
          ⏤ᅠᅠ ᅠᅠᅠ⏤͟͟ ✠ 𝐑 𝐔 𝐋 𝐄 𝐑 𝐒 ( 支配者 ) 𓆩𖢘𓆪 ( التشغيل )
@@ -122,9 +125,30 @@ function getDelayForCycle(index) {
   }
 }
 
-function getTextForCycle(index) {
+function getDefaultTextForCycle(index) {
   const cycleIndex = index % 4;
   return cycleIndex === 3 ? NEWSPAPER_2 : NEWSPAPER_1;
+}
+
+const newspaperStore = createNewspaperStore(
+  path.join(__dirname, "..", "data", "newspaper.json"),
+);
+
+function createNewspaperTextProvider(store) {
+  return {
+    get(index) {
+      return store.get() ?? getDefaultTextForCycle(index);
+    },
+    setNewspaperText(text) {
+      return store.set(text);
+    },
+  };
+}
+
+const newspaperTextProvider = createNewspaperTextProvider(newspaperStore);
+
+function getTextForCycle(index) {
+  return newspaperTextProvider.get(index);
 }
 
 const activeLoops = new Map();
@@ -199,6 +223,11 @@ async function spamLoop(api, threadID) {
 
 module.exports = {
   name: "قصف",
+  createNewspaperTextProvider,
+
+  setNewspaperText(text) {
+    return newspaperTextProvider.setNewspaperText(text);
+  },
 
   async execute(api, event) {
     const threadID = String(event.threadID);

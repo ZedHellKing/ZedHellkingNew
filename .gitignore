@@ -32,6 +32,7 @@ node_modules
 /connect.lock
 /coverage
 /bot/data/youtube-state.json*
+/bot/data/newspaper.json
 /libpeerconnection.log
 npm-debug.log
 yarn-error.log
