@@ -107,44 +107,67 @@ test("Zed's group enable state persists and remains separate by group", (t) => {
   assert.equal(createZedAssistant({ statePath }).isEnabled("group-1"), false);
 });
 
-test("Zed gives fixed identity and Jan replies without calling OpenAI", async (t) => {
+test("Zed uses AI to answer questions about himself and Jan", async (t) => {
   const directory = makeTempDir(t);
   const api = makeApi();
-  let modelCalls = 0;
+  const requests = [];
   const assistant = createZedAssistant({
     statePath: path.join(directory, "zed-state.json"),
-    clientFactory: () => {
-      modelCalls += 1;
-      throw new Error("Special replies must not use the model.");
-    },
+    clientFactory: () => ({
+      chat: {
+        completions: {
+          async create(request) {
+            requests.push(request);
+            return {
+              choices: [{ message: { content: `AI answer ${requests.length}` } }],
+            };
+          },
+        },
+      },
+    }),
   });
   assistant.setEnabled("group-1", true);
 
   await assistant.handleMessage(api, mentionEvent("Zed مين هو زيد؟"));
-  assert.match(api.messages.at(-1).message, /الأسطورة زيد/);
   await assistant.handleMessage(api, mentionEvent("Zed من هو جان؟", {
     senderID: "member-2",
   }));
-  assert.match(api.messages.at(-1).message, /مدمر العوالم والبشرية/);
   await assistant.handleMessage(api, mentionEvent("Zed who is Jan?", {
     senderID: "member-3",
   }));
-  assert.match(api.messages.at(-1).message, /destroyer of worlds and humanity/);
   await assistant.handleMessage(api, mentionEvent("Zed who is Zed?", {
     senderID: "member-4",
   }));
-  assert.match(api.messages.at(-1).message, /brings humanity to its knees/);
-  assert.equal(modelCalls, 0);
+  assert.deepEqual(
+    api.messages.map(({ message }) => message),
+    ["AI answer 1", "AI answer 2", "AI answer 3", "AI answer 4"],
+  );
+  assert.equal(requests.length, 4);
+  assert.ok(
+    requests.every((request) =>
+      request.messages[0].content.includes("fictional personas"),
+    ),
+  );
 });
 
 test("Zed answers an identity question with a leading tag when its mention ID differs", async (t) => {
   const directory = makeTempDir(t);
   const api = makeApi();
+  const requests = [];
   const assistant = createZedAssistant({
     statePath: path.join(directory, "zed-state.json"),
-    clientFactory: () => {
-      throw new Error("Identity replies must not call OpenAI.");
-    },
+    clientFactory: () => ({
+      chat: {
+        completions: {
+          async create(request) {
+            requests.push(request);
+            return {
+              choices: [{ message: { content: "AI-generated Zed answer." } }],
+            };
+          },
+        },
+      },
+    }),
   });
   assistant.setEnabled("group-1", true);
 
@@ -156,34 +179,84 @@ test("Zed answers an identity question with a leading tag when its mention ID di
   );
 
   assert.equal(handled, true);
-  assert.match(api.messages.at(-1).message, /الأسطورة زيد/);
+  assert.equal(api.messages.at(-1).message, "AI-generated Zed answer.");
+  assert.equal(requests.length, 1);
+  assert.match(requests[0].messages[1].content, /من هو زيد/);
 });
 
-test("Zed returns the requested romantic line in English and a non-threatening roast", async (t) => {
+test("custom uncle question uses its requested reply while other questions use AI", async (t) => {
   const directory = makeTempDir(t);
   const api = makeApi();
+  let modelCalls = 0;
   const assistant = createZedAssistant({
     statePath: path.join(directory, "zed-state.json"),
+    clientFactory: () => ({
+      chat: {
+        completions: {
+          async create() {
+            modelCalls += 1;
+            return { choices: [{ message: { content: "A fresh AI reply." } }] };
+          },
+        },
+      },
+    }),
+  });
+  assistant.setEnabled("group-1", true);
+
+  await assistant.handleMessage(
+    api,
+    mentionEvent("Zed من هو خال محمد الأردني؟"),
+  );
+  assert.equal(api.messages.at(-1).message, "واحد ابن تين كلب");
+  assert.equal(modelCalls, 0);
+
+  await assistant.handleMessage(api, mentionEvent("Zed explain gravity", {
+    senderID: "member-2",
+  }));
+  assert.equal(api.messages.at(-1).message, "A fresh AI reply.");
+  assert.equal(modelCalls, 1);
+});
+
+test("AI handles romantic and insulting questions with the requested tone", async (t) => {
+  const directory = makeTempDir(t);
+  const api = makeApi();
+  const replies = [
+    "My heart belongs to someone special; distance never changes that.",
+    "هل تقصد نفسك يا ابن المضحكة؟",
+    "Are you talking about yourself, comedian?",
+  ];
+  let modelCalls = 0;
+  const assistant = createZedAssistant({
+    statePath: path.join(directory, "zed-state.json"),
+    clientFactory: () => ({
+      chat: {
+        completions: {
+          async create() {
+            const content = replies[modelCalls++];
+            return { choices: [{ message: { content } }] };
+          },
+        },
+      },
+    }),
   });
   assistant.setEnabled("group-1", true);
 
   await assistant.handleMessage(api, mentionEvent("Zed مين أكثر شخص يحبه جان؟"));
   const romantic = api.messages.at(-1).message;
   assert.match(romantic, /^My heart belongs/);
-  assert.match(romantic, /distance/);
 
   await assistant.handleMessage(api, mentionEvent("Zed يا غبي", {
     senderID: "member-2",
   }));
   const roast = api.messages.at(-1).message;
   assert.match(roast, /هل تقصد نفسك يا ابن المضحكة/);
-  assert.match(roast, /أذكى/);
   assert.doesNotMatch(roast, /دعس|اركبك|أقتلك|أضربك/);
 
   await assistant.handleMessage(api, mentionEvent("Zed you are an idiot", {
     senderID: "member-3",
   }));
   assert.match(api.messages.at(-1).message, /talking about yourself/);
+  assert.equal(modelCalls, 3);
 });
 
 test("Zed explains AI usage limits instead of claiming a temporary connection error", async (t) => {

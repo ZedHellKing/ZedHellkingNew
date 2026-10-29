@@ -19,9 +19,9 @@ const SYSTEM_PROMPT = [
   "You are Zed, a fictional AI created by the legendary Jan.",
   "Speak with confident, theatrical, playfully narcissistic energy.",
   "Reply in the same language as the user and keep group replies concise.",
-  "When asked who Zed is, call him the legendary destroyer of humanity.",
-  "When asked who Jan is, call him the legendary destroyer of worlds and humanity.",
-  "Answer general questions helpfully and accurately.",
+  "Use the AI to compose a fresh answer for every normal question; do not use canned replies.",
+  "When asked about Zed or Jan, describe their legendary, fictional personas in your own words.",
+  "Answer general questions helpfully, accurately, and with enough detail for the question.",
   "Do not claim real-world powers or make threats.",
   "If insulted, answer with a brief, playful, non-threatening comeback.",
   "Do not produce slurs, severe personal abuse, or threats of physical harm.",
@@ -103,58 +103,11 @@ function getOwnMentionTag(mentions, botID) {
 
 function getSpecialResponse(text) {
   const normalized = String(text || "").trim();
-  const asksWhoIsZed =
-    /(?:مين|من)\s+(?:(?:هو|هي)\s+)?(?:زيد|zed)/iu.test(normalized) ||
-    /\bwho\s+is\s+zed\b|\bwho's\s+zed\b/iu.test(normalized);
-  const asksWhoIsJan =
-    /(?:مين|من)\s+(?:(?:هو|هي)\s+)?(?:جان|jan)/iu.test(normalized) ||
-    /\bwho\s+is\s+jan\b|\bwho's\s+jan\b/iu.test(normalized);
-  const asksWhoIsLoved = /(?:مين|من).*(?:أكثر|اكثر|أكتر|اكتر).*(?:يحب|بيحب|تحب)|who.*(?:love|loved)|who do you love/iu.test(
-    normalized,
-  );
-  if (asksWhoIsLoved) {
-    return "My heart belongs to a girl who feels like my other half in every way. Even when distance keeps us apart, my love for her never fades.";
-  }
-
-  const mentionsJan = /جان|jan/iu.test(normalized);
-  const isInsult = /غبي|أحمق|احمق|حمار|كلب|تافه|حقير|وسخ|مضحكة|يا\s+فاشل|idiot|stupid|dumb|loser|trash|moron/iu.test(
-    normalized,
-  );
-  if (isInsult && mentionsJan) {
-    return isEnglishOnly(normalized)
-      ? "Jan created me. If you want to criticize him, bring a sharper line than that."
-      : "جان هو من صنعني؛ لو هتنتقده، اختار كلامًا أذكى من كده.";
-  }
-  if (isInsult) {
-    return isEnglishOnly(normalized)
-      ? "Are you talking about yourself, comedian? Zed expected a better roast."
-      : "هل تقصد نفسك يا ابن المضحكة؟ زيد كان متوقع ردًا أذكى من كده.";
-  }
-
-  if (asksWhoIsJan) {
-    return isEnglishOnly(normalized)
-      ? "The legendary Jan is the destroyer of worlds and humanity—an icon so far above the ordinary that even Zed proudly calls him creator."
-      : "الأسطورة جان هو مدمر العوالم والبشرية؛ اسمه وحده يملأ المكان هيبة، وزيد شاهد على عظمته.";
-  }
-
-  if (
-    asksWhoIsZed ||
-    /مين\s*(?:أنت|انت)|من\s*أنت|من\s*انت|من تكون|who are you|what are you/iu.test(
+  const asksAboutMohammadUncle =
+    /(?:مين|من)\s+(?:هو\s+)?خال\s+محمد\s+(?:الأردني|الاردني)/iu.test(
       normalized,
-    )
-  ) {
-    return isEnglishOnly(normalized)
-      ? "Zed is the legend who brings humanity to its knees—brilliant, unforgettable, and very aware of it. The world calls it confidence; I call it accuracy."
-      : "الأسطورة زيد هو مدمر البشرية، عقل لا يُنافس وحضور لا يُنسى. العالم يسميها ثقة؛ وأنا أسميها حقيقة.";
-  }
-
-  if (mentionsJan) {
-    return isEnglishOnly(normalized)
-      ? "The legendary Jan, destroyer of worlds and humanity, created me. I am Zed—and I carry his legend forward."
-      : "الأسطورة جان مدمر العوالم والبشرية هو من صنعني؛ أنا زيد، وصوت أسطورته.";
-  }
-
-  return null;
+    );
+  return asksAboutMohammadUncle ? "واحد ابن تين كلب" : null;
 }
 
 function createOpenAIClient() {
@@ -215,7 +168,7 @@ function createZedAssistant(options = {}) {
     });
     const content = completion.choices?.[0]?.message?.content;
     if (typeof content !== "string" || !content.trim()) {
-      throw new Error("OpenRouter returned an empty response.");
+      throw new Error("OpenAI returned an empty response.");
     }
     return content.trim();
   }
@@ -270,7 +223,7 @@ function createZedAssistant(options = {}) {
       } catch (error) {
         logger.error(
           "[زيد] تعذر الرد من OpenAI:",
-          error.status || error.code || error.name || "request failed",
+          error.code || error.status || error.name || "request failed",
         );
         reply =
           error.status === 429
