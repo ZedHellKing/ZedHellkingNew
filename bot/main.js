@@ -3,7 +3,7 @@ const path = require("path");
 const { createRemoteControl } = require("./remote-control");
 const { deleteBotMessageOnAdminReaction } = require("./message-reactions");
 
-const ADMINS = new Set(["61592030694280"]);
+const ADMINS = new Set(["61596369022041"]);
 const commands = new Map();
 
 // عداد الرسائل لكل جروب — كل 568 رسالة يتفاعل البوت
@@ -11,7 +11,7 @@ const msgCounters = new Map();
 const REACTION_EMOJIS = ["🖤", "🥒", "☠️", "💀", "🔥"];
 const REACTION_MILESTONE = 568;
 
-const BOT_NICKNAME = "᚜𝐅⃘𝐋𝐀⃕𝐒𝐇⃫ ⟢ᚘ⟢ 𝐋̶ؗ𝐎̲҇͟𝐑͐𝐃 𝐆𝐀̶𝐋̶ؗ𝐀̸𐇽⃜𝐗𝐘̅ ⃞⃟ ᚛";
+const BOT_NICKNAME = "᚜𝐘̶ؗ𝐀̲҇͟𝐑͐𝐈 ⟢ᚘ⟢ 𝐋̶ؗ𝐎̲҇͟𝐑͐𝐃 𝐆𝐀̶𝐋̶ؗ𝐀̸𐇽⃜𝐗𝐘̅ ⃞⃟ ᚛ ⧺";
 
 function isAdmin(senderID) {
   return ADMINS.has(String(senderID));
