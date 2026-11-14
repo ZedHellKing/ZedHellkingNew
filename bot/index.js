@@ -28,7 +28,7 @@ const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const { login } = require('ws3-fca');
-const { loadCommands, handleMessage, handleEvent } = require('./main');
+const { loadCommands, handleMessage, handleEvent, commands } = require('./main');
 
 const PORT = process.env.PORT || 3000;
 const app = express();
@@ -212,8 +212,6 @@ function startBot() {
         const { commands } = require('./main');
         const qasf = commands.get('قصف');
         if (qasf && qasf.resumeAll) qasf.resumeAll(api);
-        const pin = commands.get('تثبيت');
-        if (pin && pin.resumeAll) pin.resumeAll(api);
       } catch (e) {
         console.error('[الأسطورة جان] خطأ في استئناف الحمايات:', e.message);
       }
@@ -287,6 +285,12 @@ function scheduleRestart(delay) {
 
   try { if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; } } catch (e) {}
   try { if (msgEmitter && typeof msgEmitter.stop === 'function') msgEmitter.stop(); } catch (e) {}
+  try {
+    const pin = commands.get('تثبيت');
+    if (pin && pin.stopAll) pin.stopAll();
+  } catch (e) {
+    console.error('[الأسطورة جان] خطأ في إيقاف التثبيت:', e.message || e);
+  }
 
   msgEmitter = null;
   botApi = null;
