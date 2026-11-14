@@ -63,6 +63,8 @@ const NEWSPAPER_2 = `𝐀⃥𝐔̈𝐓҈᪾𝐎̲҇͟ 𝗥̶𝗘̶𝐏⃕𝐋�
 // Cycle: 4 messages (1-3 use NEWSPAPER_1, 4 uses NEWSPAPER_2)
 // Msg1: 20-22s, Msg2: 27-28s, Msg3: 31-33s, Msg4: 35s
 function getDelayForCycle(index) {
+  return 57000;
+}
   const cycleIndex = index % 4;
   if (cycleIndex === 0) {
     return 20000 + Math.floor(Math.random() * 3000);
