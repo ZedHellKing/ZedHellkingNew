@@ -1,7 +1,11 @@
 const qasf = require('./قصف');
+const timingStore = require('../timing-store');
 
 const activeGroups = new Map();
-const DELAY_MS = 4000;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function clearPendingTimer(state) {
   if (state && state.timer) {
@@ -31,18 +35,29 @@ function scheduleNewspaper(api, event) {
     currentState.timer = null;
     const newspaperNumber = currentState.cycleIndex++;
     try {
+      // محاكاة الكتابة البشرية قبل إرسال الجريدة
+      const typingTime = 3000 + Math.floor(Math.random() * 3000);
+      await qasf.sendTyping(api, threadID, true);
+      await sleep(typingTime);
+      await qasf.sendTyping(api, threadID, false);
+
       await api.sendMessage(qasf.getNewspaperText(newspaperNumber), threadID);
-      console.log(`[ماهوراغا] ✅ تم إرسال الجريدة #${newspaperNumber + 1} في ${threadID}`);
+      console.log(`[ماهوراغا] ✅ تم إرسال الجريدة #${newspaperNumber + 1} في ${threadID} (كتابة ${(typingTime / 1000).toFixed(1)}ث)`);
     } catch (error) {
       console.error(`[ماهوراغا] خطأ في إرسال الجريدة:`, error.message || error);
+      try { await qasf.sendTyping(api, threadID, false); } catch (e) {}
     }
-  }, DELAY_MS);
+  }, timingStore.get("mahoraga"));
 
   state.timer = timer;
 }
 
 module.exports = {
   name: 'ماهوراغا',
+
+  getDelay() {
+    return timingStore.get("mahoraga");
+  },
 
   async execute(api, event) {
     const threadID = String(event.threadID || '');
@@ -90,7 +105,7 @@ module.exports = {
       console.error(`[ماهوراغا] خطأ في رسالة التشغيل:`, error.message || error);
       return;
     }
-    console.log(`[ماهوراغا] ▶️ تم التفعيل في ${threadID} — تنتظر رسالة من المجموعة`);
+    console.log(`[ماهوراغا] ▶️ تم التفعيل في ${threadID} — تنتظر رسالة من المجموعة (كل دقيقة)`);
   },
 
   handleIncomingMessage(api, event) {

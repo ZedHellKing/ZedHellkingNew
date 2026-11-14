@@ -71,6 +71,17 @@ async function handleMessage(api, event) {
   }
 
   if (isAdmin(senderID)) {
+    const timerCmd = commands.get("المؤقت");
+    if (timerCmd && typeof timerCmd.handleReply === "function") {
+      const handled = await timerCmd
+        .handleReply(api, event)
+        .catch((e) => {
+          console.error("[الأسطورة جان] خطأ في المؤقت:", e.message || e);
+          return false;
+        });
+      if (handled) return;
+    }
+
     const handled = await remoteControl
       .handleMessage(api, event, commands)
       .catch((e) => {
@@ -256,6 +267,18 @@ async function handleMessage(api, event) {
         .execute(api, event)
         .catch((e) =>
           console.error("[الأسطورة جان] خطأ في تثبيت:", e.message || e),
+        );
+    return;
+  }
+
+  if (body === "المؤقت") {
+    if (!isAdmin(senderID)) return;
+    const cmd = commands.get("المؤقت");
+    if (cmd)
+      cmd
+        .execute(api, event)
+        .catch((e) =>
+          console.error("[الأسطورة جان] خطأ في المؤقت:", e.message || e),
         );
     return;
   }
