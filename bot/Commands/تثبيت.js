@@ -6,20 +6,10 @@ const {
 } = require("./تثبيت/groupImage");
 
 const DEFAULT_DATA_DIR = path.join(__dirname, "..", "data", "pinned-images");
-const DEFAULT_STATE_PATH = path.join(__dirname, "..", "data", "pinned-images.json");
 const STOP_MESSAGES = new Set(["تثبيت ايقاف", "تثبيت إيقاف"]);
 const RESTORE_DELAY = 4000;
 const IMAGE_CHECK_INTERVAL = 2000;
-
-function loadState(statePath) {
-  try {
-    const state = JSON.parse(fs.readFileSync(statePath, "utf8"));
-    if (!state || typeof state !== "object" || Array.isArray(state)) return {};
-    return state;
-  } catch (_) {
-    return {};
-  }
-}
+const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
 
 function imageURL(attachment) {
   return (
@@ -48,13 +38,13 @@ async function downloadImage(url, destination) {
   if (!response.ok) throw new Error(`فشل تنزيل الصورة (${response.status})`);
 
   const contentLength = Number(response.headers.get("content-length") || 0);
-  if (contentLength > 15 * 1024 * 1024) {
+  if (contentLength > MAX_IMAGE_BYTES) {
     throw new Error("حجم الصورة أكبر من 15 ميجابايت");
   }
 
   const bytes = Buffer.from(await response.arrayBuffer());
   if (bytes.length === 0) throw new Error("الصورة فارغة");
-  if (bytes.length > 15 * 1024 * 1024) {
+  if (bytes.length > MAX_IMAGE_BYTES) {
     throw new Error("حجم الصورة أكبر من 15 ميجابايت");
   }
 
@@ -62,9 +52,16 @@ async function downloadImage(url, destination) {
   fs.writeFileSync(destination, bytes);
 }
 
+function removeFile(filePath) {
+  try {
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  } catch (error) {
+    console.error("[تثبيت] تعذر حذف الصورة المؤقتة:", error.message || error);
+  }
+}
+
 function createPinCommand(options = {}) {
   const dataDir = options.dataDir || DEFAULT_DATA_DIR;
-  const statePath = options.statePath || DEFAULT_STATE_PATH;
   const downloadImageImpl = options.downloadImage || downloadImage;
   const changeImage = options.changeGroupImage || defaultChangeGroupImage;
   const readImage = options.readGroupImage || defaultReadGroupImage;
@@ -74,29 +71,15 @@ function createPinCommand(options = {}) {
   const clearIntervalImpl = options.clearInterval || clearInterval;
   const now = options.now || Date.now;
 
+  // الحالة في الذاكرة فقط: تختفي تلقائياً عند فصل البوت أو إعادة تشغيله.
+  const pins = new Map();
+  const baselines = new Map();
   const applying = new Set();
   const suppressEvents = new Map();
   const imageMonitors = new Map();
   const monitorChecks = new Set();
   const monitorErrors = new Set();
-  const monitorEmptyResults = new Set();
   const restoreTimers = new Map();
-  const imageBaselines = new Map();
-  const pinnedImages = loadState(statePath);
-
-  function saveState() {
-    fs.mkdirSync(path.dirname(statePath), { recursive: true });
-    const temporaryPath = `${statePath}.${process.pid}.${Date.now()}.tmp`;
-    try {
-      fs.writeFileSync(temporaryPath, JSON.stringify(pinnedImages, null, 2));
-      fs.renameSync(temporaryPath, statePath);
-    } catch (error) {
-      try {
-        if (fs.existsSync(temporaryPath)) fs.unlinkSync(temporaryPath);
-      } catch (_) {}
-      throw error;
-    }
-  }
 
   function imagePath(threadID) {
     return path.join(dataDir, `${threadID.replace(/[^a-zA-Z0-9_-]/g, "_")}.jpg`);
@@ -108,10 +91,6 @@ function createPinCommand(options = {}) {
     restoreTimers.delete(threadID);
   }
 
-  function isPinActive(config) {
-    return Boolean(config && config.active !== false);
-  }
-
   function stopImageMonitor(threadID) {
     if (imageMonitors.has(threadID)) {
       clearIntervalImpl(imageMonitors.get(threadID));
@@ -119,28 +98,23 @@ function createPinCommand(options = {}) {
     imageMonitors.delete(threadID);
     monitorChecks.delete(threadID);
     monitorErrors.delete(threadID);
-    monitorEmptyResults.delete(threadID);
-    imageBaselines.delete(threadID);
-    clearRestoreTimer(threadID);
   }
 
-  function stopPin(threadID) {
-    const config = pinnedImages[threadID];
-    if (!config) return false;
+  function forgetPin(threadID) {
+    const pin = pins.get(threadID);
+    if (!pin) return false;
 
     stopImageMonitor(threadID);
-    delete pinnedImages[threadID];
+    clearRestoreTimer(threadID);
+    pins.delete(threadID);
+    baselines.delete(threadID);
     suppressEvents.delete(threadID);
-    saveState();
-    try {
-      if (config.path && fs.existsSync(config.path)) fs.unlinkSync(config.path);
-    } catch (error) {
-      console.error(
-        `[تثبيت] تعذر حذف الصورة المحفوظة في ${threadID}:`,
-        error.message || error,
-      );
-    }
+    removeFile(pin.path);
     return true;
+  }
+
+  function stopAll() {
+    for (const threadID of [...pins.keys()]) forgetPin(threadID);
   }
 
   async function getReplyImage(api, event) {
@@ -168,25 +142,14 @@ function createPinCommand(options = {}) {
 
   async function updateImageBaseline(api, threadID) {
     const image = await readImage(api, threadID);
-    if (!image) {
-      imageBaselines.set(threadID, null);
-      return null;
-    }
-
-    const fingerprint = imageFingerprint(image);
-    imageBaselines.set(threadID, fingerprint);
-    const config = pinnedImages[threadID];
-    if (config && config.imageFingerprint !== fingerprint) {
-      config.imageFingerprint = fingerprint;
-      saveState();
-    }
+    baselines.set(threadID, image ? imageFingerprint(image) : null);
     return image;
   }
 
   async function applyPinnedImage(api, threadID, reason) {
-    const config = pinnedImages[threadID];
-    if (!isPinActive(config) || !config.path || applying.has(threadID)) return false;
-    if (!fs.existsSync(config.path)) {
+    const pin = pins.get(threadID);
+    if (!pin || applying.has(threadID)) return false;
+    if (!fs.existsSync(pin.path)) {
       console.error(`[تثبيت] ملف الصورة مفقود في ${threadID}`);
       return false;
     }
@@ -194,7 +157,7 @@ function createPinCommand(options = {}) {
     applying.add(threadID);
     suppressEvents.set(threadID, now() + 2000);
     try {
-      await changeImage(api, config.path, threadID);
+      await changeImage(api, pin.path, threadID);
       console.log(
         `[تثبيت] ✅ أُعيدت صورة المجموعة ${threadID}${reason ? ` (${reason})` : ""}`,
       );
@@ -205,7 +168,7 @@ function createPinCommand(options = {}) {
   }
 
   function scheduleRestore(api, threadID, reason, resetTimer = false) {
-    if (!isPinActive(pinnedImages[threadID])) return;
+    if (!pins.has(threadID)) return;
 
     // فحوصات المراقبة تتكرر كل ثانيتين؛ لا تسمح لها بتأجيل مؤقت الأربع ثواني.
     if (restoreTimers.has(threadID) && !resetTimer) return;
@@ -219,7 +182,7 @@ function createPinCommand(options = {}) {
       restoreTimers.delete(threadID);
 
       try {
-        if (!isPinActive(pinnedImages[threadID])) return;
+        if (!pins.has(threadID)) return;
         const restored = await applyPinnedImage(api, threadID, reason);
         if (restored) await updateImageBaseline(api, threadID);
       } catch (error) {
@@ -233,7 +196,7 @@ function createPinCommand(options = {}) {
     if (!threadID || imageMonitors.has(threadID)) return;
 
     const monitor = setIntervalImpl(async () => {
-      if (!isPinActive(pinnedImages[threadID])) {
+      if (!pins.has(threadID)) {
         stopImageMonitor(threadID);
         return;
       }
@@ -242,33 +205,13 @@ function createPinCommand(options = {}) {
       monitorChecks.add(threadID);
       try {
         const currentImage = await readImage(api, threadID);
+        const baseline = baselines.get(threadID) || null;
         if (!currentImage) {
-          const baseline = imageBaselines.get(threadID);
-          if (baseline !== undefined && baseline !== null) {
-            scheduleRestore(api, threadID, "حذف مرصود");
-          } else if (!monitorEmptyResults.has(threadID)) {
-            console.warn(
-              `[تثبيت] فحص صورة المجموعة ${threadID} لم يُرجع رابط صورة صالحاً`,
-            );
-            monitorEmptyResults.add(threadID);
-          }
-          return;
-        }
-
-        const currentFingerprint = imageFingerprint(currentImage);
-        const baseline = imageBaselines.get(threadID);
-        if (baseline === undefined) {
-          const savedFingerprint =
-            pinnedImages[threadID].imageFingerprint || null;
-          imageBaselines.set(threadID, savedFingerprint);
-          if (!savedFingerprint || currentFingerprint !== savedFingerprint) {
-            scheduleRestore(api, threadID, "تغيير مرصود");
-          }
-        } else if (baseline === null || currentFingerprint !== baseline) {
+          if (baseline) scheduleRestore(api, threadID, "حذف مرصود");
+        } else if (imageFingerprint(currentImage) !== baseline) {
           scheduleRestore(api, threadID, "تغيير مرصود");
         }
         monitorErrors.delete(threadID);
-        monitorEmptyResults.delete(threadID);
       } catch (error) {
         if (!monitorErrors.has(threadID)) {
           console.error(
@@ -296,7 +239,7 @@ function createPinCommand(options = {}) {
     }
 
     if (STOP_MESSAGES.has(body)) {
-      if (stopPin(threadID)) {
+      if (forgetPin(threadID)) {
         await api.sendMessage(
           "✅ تم إيقاف تثبيت الصورة وإلغاء الحماية.",
           threadID,
@@ -327,13 +270,10 @@ function createPinCommand(options = {}) {
     try {
       await api.sendMessage("⏳ جاري تثبيت الصورة كصورة للمجموعة...", threadID);
       await downloadImageImpl(replyImage.url, savedPath);
-      pinnedImages[threadID] = {
+      pins.set(threadID, {
         path: savedPath,
         sourceMessageID: event.messageReply.messageID || null,
-        updatedAt: new Date().toISOString(),
-        active: true,
-      };
-      saveState();
+      });
 
       const applied = await applyPinnedImage(api, threadID, "تثبيت جديد");
       if (!applied) throw new Error("تعذر تطبيق الصورة على المجموعة");
@@ -349,15 +289,8 @@ function createPinCommand(options = {}) {
         threadID,
       );
     } catch (error) {
-      delete pinnedImages[threadID];
-      try {
-        if (fs.existsSync(savedPath)) fs.unlinkSync(savedPath);
-      } catch (_) {}
-      try {
-        saveState();
-      } catch (saveError) {
-        console.error("[تثبيت] تعذر حفظ حالة الإيقاف بعد الخطأ:", saveError.message || saveError);
-      }
+      forgetPin(threadID);
+      removeFile(savedPath);
       console.error("[تثبيت] خطأ:", error.message || error);
       await api.sendMessage(
         `❌ تعذر تثبيت الصورة: ${error.message || "خطأ غير معروف"}`,
@@ -368,8 +301,7 @@ function createPinCommand(options = {}) {
 
   function handleGroupImageEvent(api, event) {
     const threadID = String(event.threadID || "");
-    const config = pinnedImages[threadID];
-    if (!threadID || !isPinActive(config) || applying.has(threadID)) return;
+    if (!threadID || !pins.has(threadID) || applying.has(threadID)) return;
 
     const logData = event.logMessageData || {};
     const actorID = String(
@@ -390,43 +322,11 @@ function createPinCommand(options = {}) {
     scheduleRestore(api, threadID, "تغيير مرصود", true);
   }
 
-  async function resumeAll(api) {
-    for (const threadID of Object.keys(pinnedImages)) {
-      const config = pinnedImages[threadID];
-      if (!isPinActive(config)) continue;
-
-      stopImageMonitor(threadID);
-      const savedFingerprint = config.imageFingerprint || null;
-      imageBaselines.set(threadID, savedFingerprint);
-
-      try {
-        const currentImage = await readImage(api, threadID);
-        if (!currentImage) {
-          scheduleRestore(api, threadID, "استعادة بعد الاتصال");
-        } else {
-          const currentFingerprint = imageFingerprint(currentImage);
-          if (!savedFingerprint || currentFingerprint !== savedFingerprint) {
-            scheduleRestore(api, threadID, "استعادة بعد الاتصال");
-          }
-        }
-      } catch (error) {
-        console.error(
-          `[تثبيت] تعذر التحقق من صورة المجموعة عند الاتصال ${threadID}:`,
-          error.message || error,
-        );
-        if (!savedFingerprint) {
-          scheduleRestore(api, threadID, "استعادة صورة محفوظة");
-        }
-      }
-      startImageMonitor(api, threadID);
-    }
-  }
-
   return {
     name: "تثبيت",
     execute,
     handleGroupImageEvent,
-    resumeAll,
+    stopAll,
   };
 }
 

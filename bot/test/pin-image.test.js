@@ -13,7 +13,6 @@ function createHarness(root) {
   const downloadedURLs = [];
   const photoIDs = [];
   const imageChanges = [];
-  const statePath = path.join(root, "pinned-images.json");
   const dataDir = path.join(root, "pinned-images");
   const shared = { currentImage: null, now: 10_000 };
 
@@ -28,7 +27,6 @@ function createHarness(root) {
   };
 
   const command = createPinCommand({
-    statePath,
     dataDir,
     now: () => shared.now,
     async downloadImage(url, destination) {
@@ -84,7 +82,6 @@ function createHarness(root) {
     photoIDs,
     pinFromReply,
     shared,
-    statePath,
     timeouts,
   };
 }
@@ -109,7 +106,7 @@ test("replying تثبيت to a photo resolves its photo ID and saves the group i
   assert.match(h.messages.at(-1).message, /ستعود بعد 4 ثوانٍ/);
 });
 
-test("a group-image event keeps the four-second restore timer from being postponed by polling", async (t) => {
+test("a group-image event restores the pin after four seconds without being postponed by polling", async (t) => {
   const h = createHarness(temporaryRoot(t));
   await h.pinFromReply();
   h.shared.currentImage = "https://cdn.example/changed-image.jpg";
@@ -151,25 +148,44 @@ test("the monitor schedules restoration when a group image is deleted without an
   );
 });
 
-test("the monitor restores a deleted group image and resumes a saved pin after restart", async (t) => {
+test("stopAll cancels the pin, its monitor, its restore timer and its saved image", async (t) => {
+  const h = createHarness(temporaryRoot(t));
+  await h.pinFromReply();
+  h.shared.currentImage = null;
+  const [monitor] = h.intervals.values();
+  await monitor.callback();
+  assert.equal(h.timeouts.size, 1);
+
+  h.command.stopAll();
+
+  assert.equal(h.intervals.size, 0);
+  assert.equal(h.timeouts.size, 0);
+  assert.equal(fs.existsSync(path.join(h.dataDir, "group-1.jpg")), false);
+
+  h.shared.now = 20_000;
+  h.command.handleGroupImageEvent(h.api, { threadID: "group-1" });
+  assert.equal(h.timeouts.size, 0);
+});
+
+test("a new session starts with no pins even if an image file from an earlier session exists", async (t) => {
   const root = temporaryRoot(t);
   const beforeRestart = createHarness(root);
   await beforeRestart.pinFromReply();
+  assert.ok(fs.existsSync(path.join(beforeRestart.dataDir, "group-1.jpg")));
 
   const afterRestart = createHarness(root);
   afterRestart.shared.currentImage = null;
-  await afterRestart.command.resumeAll(afterRestart.api);
+  await afterRestart.command.execute(afterRestart.api, {
+    body: "تثبيت ايقاف",
+    threadID: "group-1",
+    isGroup: true,
+  });
 
-  assert.equal(afterRestart.timeouts.size, 1);
-  const [[timerID, timer]] = afterRestart.timeouts;
-  assert.equal(timer.delay, 4000);
-  await timer.callback();
-
-  assert.equal(afterRestart.imageChanges.length, 1);
+  assert.equal(afterRestart.imageChanges.length, 0);
+  assert.equal(afterRestart.timeouts.size, 0);
+  assert.equal(afterRestart.intervals.size, 0);
   assert.equal(
-    afterRestart.shared.currentImage,
-    "https://cdn.example/pinned-group-image.jpg",
+    afterRestart.messages.at(-1).message,
+    "⚠️ لا توجد صورة مثبتة في هذه المجموعة.",
   );
-  assert.ok(afterRestart.command);
-  assert.ok(timerID);
 });
