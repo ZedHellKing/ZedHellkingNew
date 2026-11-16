@@ -5,12 +5,14 @@ function createConnectionState({ now = () => Date.now() } = {}) {
     loggedIn: false,
     listenerActive: false,
     listenerStartedAt: null,
+    lastConnectedAt: null,
     lastEventAt: null,
     lastMessageAt: null,
     lastLoginAt: null,
     lastReconnectSuccessAt: null,
     lastError: null,
-    reconnectAttempts: 0,
+    loginAttempts: 0,
+    mqttAttempts: 0,
     attentionReason: null,
   };
   const alerted = new Set();
@@ -27,31 +29,27 @@ function createConnectionState({ now = () => Date.now() } = {}) {
       state.status = status;
     },
     markLoginSuccess() {
-      const at = now();
-      if (state.reconnectAttempts > 0) state.lastReconnectSuccessAt = at;
       Object.assign(state, {
         loggedIn: true,
         status: "connecting",
-        lastLoginAt: at,
+        lastLoginAt: now(),
         attentionReason: null,
-        reconnectAttempts: 0,
       });
       alerted.clear();
     },
     markListenerStarted() {
       const at = now();
+      if (state.mqttAttempts > 0) state.lastReconnectSuccessAt = at;
       Object.assign(state, {
         listenerActive: true,
         listenerStartedAt: at,
+        lastConnectedAt: at,
         lastEventAt: at,
         status: "online",
       });
     },
     markListenerStopped() {
       Object.assign(state, { listenerActive: false, listenerStartedAt: null });
-    },
-    markLoggedOut() {
-      Object.assign(state, { loggedIn: false, listenerActive: false, listenerStartedAt: null });
     },
     markNeedsAttention(reason) {
       Object.assign(state, {
@@ -71,11 +69,14 @@ function createConnectionState({ now = () => Date.now() } = {}) {
     markError(kind) {
       state.lastError = { kind, at: now() };
     },
-    markReconnectAttempt() {
-      state.reconnectAttempts += 1;
+    markReconnectAttempt(kind) {
+      if (kind === "login") state.loginAttempts += 1;
+      else state.mqttAttempts += 1;
+      return kind === "login" ? state.loginAttempts : state.mqttAttempts;
     },
-    resetReconnectAttempts() {
-      state.reconnectAttempts = 0;
+    resetAttempts() {
+      state.loginAttempts = 0;
+      state.mqttAttempts = 0;
     },
     shouldAlert(key) {
       if (alerted.has(key)) return false;

@@ -55,7 +55,9 @@ function createHealthServer({ connectionState, memoryUsage = () => process.memor
       lastLoginAt: snap.lastLoginAt,
       lastReconnectSuccessAt: snap.lastReconnectSuccessAt,
       lastError: snap.lastError,
-      reconnectAttempts: snap.reconnectAttempts,
+      loginAttempts: snap.loginAttempts,
+      mqttAttempts: snap.mqttAttempts,
+      lastConnectedAt: snap.lastConnectedAt,
       attentionReason: snap.attentionReason,
       uptimeSeconds: Math.floor(process.uptime()),
       memory: {
@@ -105,6 +107,7 @@ function createHealthServer({ connectionState, memoryUsage = () => process.memor
           ready: snap.ready,
           loggedIn: snap.loggedIn,
           listenerActive: snap.listenerActive,
+          lastConnectedAt: snap.lastConnectedAt,
         });
       }
       if (pathname === "/ping") {

@@ -50,6 +50,20 @@ Body: [... مصفوفة الكوكيز ...]
 - `GET /uptime`, `GET /status` — معلومات تشغيل غير حساسة
 - `GET /testsend?thread=ID` و `POST /updatecookies` — تتطلب `Authorization: Bearer <BOT_ADMIN_TOKEN>`، وتكون معطلة إذا لم يُضبط المتغير
 
-الإعدادات تُقرأ من متغيرات البيئة (انظر `bot/config.js`). ملف الجلسة `bot/appstate.json` يُحفظ بصورة ذرية مع نسخ احتياطية، وسجل الأعطال في `bot/data/crash-history.json`.
+الإعدادات تُقرأ من متغيرات البيئة (انظر `bot/config.js` و `.env.example`). ملف الجلسة `bot/appstate.json` يُحفظ بصورة ذرية مع نسخ احتياطية، وسجل الأعطال في `bot/data/crash-history.json`.
+
+### منطق إعادة الاتصال
+
+- عدادان منفصلان: محاولات تسجيل الدخول ومحاولات مستمع MQTT.
+- لا يُصفَّر أي عداد عند نجاح تسجيل الدخول، بل بعد أن يبقى المستمع متصلًا لمدة `RECONNECT_STABLE_SECONDS`.
+- إعادة الاتصال الداخلية لمكتبة `ws3-fca` معطلة (`autoReconnect: false`)، وإعادة الاتصال تتم من منطق البوت وحده لتفادي مستمعين متزامنين.
+- `/ready` يعني أن تسجيل الدخول والمستمع قائمان. صمت الرسائل لا يعني انقطاعًا، ويُسجَّل فقط كتحذير.
+
+### التشغيل المستمر
+
+- نقطة التشغيل في `.replit` وفي `bot/package.json` هي `supervisor.js`. لا تشغّل `index.js` مباشرة.
+- `deploymentTarget` في `.replit` ما زال `autoscale`. Autoscale لا يضمن بقاء عملية MQTT مفتوحة، والتشغيل المستمر يحتاج خطة Reserved VM أو VPS.
+- Keep Alive لا يمنع إيقاف الخدمة من المنصة، ولا يُستخدم لتجاوز سياساتها.
+
 
 ## User preferences

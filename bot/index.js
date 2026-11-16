@@ -6,6 +6,7 @@ const { createLogger } = require("./logger");
 const { acquireLock } = require("./process-lock");
 const { createSessionStore, validateAppState } = require("./session-store");
 const { createConnectionState } = require("./connection-state");
+const { createListenerSession, silenceStatus } = require("./listener-session");
 const { classifyError } = require("./login-errors");
 const { computeBackoffDelay } = require("./backoff");
 const { createMessageDeduper } = require("./message-dedup");
@@ -20,7 +21,7 @@ const LOGIN_OPTIONS = {
   autoMarkDelivery: false,
   autoMarkRead: false,
   forceLogin: false,
-  autoReconnect: true,
+  autoReconnect: false,
   online: true,
 };
 
@@ -50,10 +51,8 @@ if (!isSupervised) {
 }
 
 let botApi = null;
-let listenerAttached = false;
-let listenerStarting = false;
-let listenerGeneration = 0;
-let listenerHandle = null;
+const listener = createListenerSession({ log });
+let stableTimer = null;
 let loginInFlight = false;
 let reconnectTimer = null;
 let shuttingDown = false;
@@ -76,19 +75,23 @@ function markAttention(key, text) {
   conn.markNeedsAttention(text);
 }
 
-function stopHandle(handle) {
-  try {
-    if (handle && typeof handle.stop === "function") handle.stop();
-  } catch (error) {
-    log.warn("listener", "خطأ أثناء إيقاف المستمع", { message: error.message });
-  }
+function clearStableTimer() {
+  if (stableTimer) clearTimeout(stableTimer);
+  stableTimer = null;
+}
+
+function armStableReset() {
+  clearStableTimer();
+  stableTimer = setTimeout(() => {
+    stableTimer = null;
+    conn.resetAttempts();
+    log.info("listener", "الاتصال مستقر، تم تصفير عدادات إعادة المحاولة");
+  }, config.reconnectStableSeconds * 1000);
 }
 
 function stopListener(reason) {
-  listenerGeneration += 1;
-  stopHandle(listenerHandle);
-  listenerHandle = null;
-  listenerAttached = false;
+  clearStableTimer();
+  listener.stop(reason);
   botApi = null;
   conn.markListenerStopped();
   const pin = commands.get("تثبيت");
@@ -105,7 +108,7 @@ function persistSession() {
   }
 }
 
-function scheduleReconnect(reason) {
+function scheduleReconnect(reason, kind = "mqtt") {
   if (shuttingDown || reconnectTimer) return;
   if (!config.reconnectEnabled) {
     conn.setStatus("stopped");
@@ -113,15 +116,14 @@ function scheduleReconnect(reason) {
     return;
   }
 
-  conn.markReconnectAttempt();
-  const { reconnectAttempts } = conn.snapshot();
-  if (config.maxRestartAttempts > 0 && reconnectAttempts > config.maxRestartAttempts) {
-    markAttention("reconnect_limit", "تجاوز عدد محاولات إعادة الاتصال الحد المسموح، يلزم التدخل اليدوي");
+  const attempt = conn.markReconnectAttempt(kind);
+  if (config.maxRestartAttempts > 0 && attempt > config.maxRestartAttempts) {
+    markAttention(`${kind}_limit`, "تجاوز عدد محاولات إعادة الاتصال الحد المسموح، يلزم التدخل اليدوي");
     return;
   }
 
   const delay = computeBackoffDelay({
-    attempt: reconnectAttempts,
+    attempt,
     initialMs: config.reconnectInitialDelay * 1000,
     maxMs: config.reconnectMaxDelay * 1000,
     jitterRatio: config.reconnectJitter,
@@ -129,7 +131,7 @@ function scheduleReconnect(reason) {
   conn.setStatus("reconnecting");
   log.warn("listener", "انقطع الاتصال، جاري إعادة المحاولة", {
     reason,
-    attempt: reconnectAttempts,
+    attempt,
     delaySeconds: Math.round(delay / 1000),
   });
   reconnectTimer = setTimeout(() => {
@@ -179,26 +181,15 @@ function onListenerEvent(api, err, event) {
 }
 
 async function startListening(api) {
-  if (listenerAttached || listenerStarting) return;
-  listenerStarting = true;
-  const generation = listenerGeneration;
   try {
-    const handle = await api.listenMqtt((err, event) => {
-      if (generation === listenerGeneration) onListenerEvent(api, err, event);
-    });
-    if (generation !== listenerGeneration) {
-      stopHandle(handle);
-      return;
-    }
-    listenerHandle = handle;
-    listenerAttached = true;
+    const result = await listener.start(api, (err, event) => onListenerEvent(api, err, event));
+    if (!result.started) return;
     conn.markListenerStarted();
+    armStableReset();
     log.info("listener", "مستمع الرسائل يعمل");
   } catch (error) {
     log.error("listener", "فشل بدء مستمع الرسائل", { message: error.message });
-    if (generation === listenerGeneration) scheduleReconnect("listen_start_failed");
-  } finally {
-    listenerStarting = false;
+    scheduleReconnect("listen_start_failed", "mqtt");
   }
 }
 
@@ -218,7 +209,7 @@ function onLogin(err, api) {
       return;
     }
     log.error("login", "فشل تسجيل الدخول", { kind, message: err.message || err.error || err });
-    scheduleReconnect("login_failed");
+    scheduleReconnect("login_failed", "login");
     return;
   }
 
@@ -240,7 +231,7 @@ function onLogin(err, api) {
 }
 
 function startBot() {
-  if (shuttingDown || loginInFlight || listenerAttached || listenerStarting) return;
+  if (shuttingDown || loginInFlight || listener.active) return;
 
   const appState = sessionStore.load();
   if (!appState) {
@@ -268,6 +259,7 @@ function pruneApiCaches(api) {
 const memoryMonitor = createMemoryMonitor({
   warnMb: config.memoryWarningMb,
   restartMb: config.memoryRestartMb,
+  confirmChecks: config.memoryConfirmChecks,
   cooldownMs: config.memoryRestartCooldown * 1000,
   uptimeMs: () => process.uptime() * 1000,
   onWarn: (snapshot) => log.warn("memory", "استهلاك الذاكرة مرتفع", snapshot),
@@ -286,8 +278,13 @@ function monitorTick() {
 
   const snap = conn.snapshot();
   const silentMs = snap.lastEventAt ? Date.now() - snap.lastEventAt : 0;
-  const silenceLimitMs = config.listenerSilenceWarn * 1000;
-  if (snap.listenerActive && silentMs > silenceLimitMs) {
+  const status = silenceStatus({
+    listenerActive: snap.listenerActive,
+    lastEventAt: snap.lastEventAt,
+    now: Date.now(),
+    limitMs: config.listenerSilenceWarn * 1000,
+  });
+  if (status === "silent") {
     if (!silenceWarned) {
       silenceWarned = true;
       log.warn("listener", "لم تصل أي أحداث من فيسبوك منذ فترة طويلة", {
@@ -321,7 +318,7 @@ function updateCookies(body) {
   }
   log.info("session", "تم تحديث الجلسة عبر لوحة الإدارة، جاري إعادة الاتصال");
   stopListener("cookies_updated");
-  conn.resetReconnectAttempts();
+  conn.resetAttempts();
   if (reconnectTimer) clearTimeout(reconnectTimer);
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;

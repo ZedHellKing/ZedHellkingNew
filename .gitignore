@@ -39,6 +39,7 @@ node_modules
 /bot/appstate.json
 /bot/appstate.json.*
 /bot/account.txt
+/bot/appstate.json.bak.*
 /bot/**/*cookie*
 /bot/**/*token*.json
 /bot/logs/
@@ -59,3 +60,6 @@ Thumbs.db
 .cache/
 .local/
 .env
+.env.*
+!.env.example
+**/*.env.local
