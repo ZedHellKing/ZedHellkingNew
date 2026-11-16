@@ -26,7 +26,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd bot && node index.js"
+args = "cd bot && node supervisor.js"
 waitForPort = 3000
 
 [workflows.workflow.metadata]

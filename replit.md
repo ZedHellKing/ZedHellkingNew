@@ -41,11 +41,15 @@ Body: [... مصفوفة الكوكيز ...]
 - `يوت [اسم المقطع]`
 - التفاعل بـ🪯 من حساب مشرف على رسالة البوت يحذفها؛ لا يحذف رسائل الآخرين.
 
-## المنفذ
+## المنفذ والمراقبة
 
-البوت يشغّل خادم Express على المنفذ `PORT` (افتراضياً 3000).
-- `GET /` — حالة البوت
-- `GET /ping` — فحص الحياة
-- `POST /updatecookies` — تحديث الكوكيز
+يشغّل المشرف `bot/supervisor.js` عملية البوت `bot/index.js` ويعيد تشغيلها عند الأعطال.
+
+- `GET /health` — البوت حي
+- `GET /ready` — تسجيل الدخول والمستمع يعملان (503 بخلاف ذلك)
+- `GET /uptime`, `GET /status` — معلومات تشغيل غير حساسة
+- `GET /testsend?thread=ID` و `POST /updatecookies` — تتطلب `Authorization: Bearer <BOT_ADMIN_TOKEN>`، وتكون معطلة إذا لم يُضبط المتغير
+
+الإعدادات تُقرأ من متغيرات البيئة (انظر `bot/config.js`). ملف الجلسة `bot/appstate.json` يُحفظ بصورة ذرية مع نسخ احتياطية، وسجل الأعطال في `bot/data/crash-history.json`.
 
 ## User preferences
