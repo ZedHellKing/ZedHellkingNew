@@ -1,12 +1,63 @@
-const GUARD_MESSAGE =
-  "🛡️ تم تفعيل حماية zedhellking في هذه المجموعة.\n" +
-  "الحماية مسلّحة الآن حتى لو لم يكن البوت مسؤولاً.\n" +
-  "عندما يعيّن أحد البوت مسؤولاً: يُزال ذلك الشخص من دور المشرف فوراً، " +
-  "ثم يُزال مشرف واحد كل ثانية حتى لا يبقى مشرفون غير البوت، " +
-  "ثم يُعيَّن صاحب الأمر مشرفاً وحيداً مع البوت.";
-
 const DEMOTE_DELAY_MS = 1000;
 const MAX_STRIP_ROUNDS = 200;
+
+const AWAKENING_LINES = [
+  "Simple life forms surround us.",
+  "The unknown is here.",
+  "We will show the universe its true potential.",
+  "Tradition pacifies the weak.",
+  "The Templars restrain us no more.",
+  "Ora... the essence of all things.",
+  "Some consider us evil... How naive they must be.",
+  "Let us remind the universe what we are.",
+  "Remorse is futile.",
+  "If they want Ora... we will give it.",
+  "Our blades crave battle.",
+  "No more sacred orders. No more limitations.",
+  "Harmony blooms once the weak wither away.",
+  "Listen to the cosmos. Hear the truth.",
+  "The galaxy will know its destiny.",
+  "We. Are. Enlightened.",
+  "Beyond the reaches of space, we evolve.",
+  "Only fools cling to morals.",
+  "We are the gift this galaxy needs.",
+  "WE ARE ZED",
+  "Behold! The pinnacle of creation.",
+  "We are everywhere, all at once.",
+  "A new genesis approaches.",
+  "Only time can judge us.",
+  "We walk the path to eternity.",
+  "The Templars promise salvation. They lie.",
+  "We let the monster out.",
+  "We gaze upon the stars and see no limits.",
+  "We go where others dare not.",
+];
+
+function pickAwakeningLine() {
+  return AWAKENING_LINES[Math.floor(Math.random() * AWAKENING_LINES.length)];
+}
+
+function stylize(text) {
+  const boldMap = {
+    a: "ᴀ", b: "ʙ", c: "ᴄ", d: "ᴅ", e: "ᴇ", f: "ꜰ", g: "ɢ", h: "ʜ",
+    i: "ɪ", j: "ᴊ", k: "ᴋ", l: "ʟ", m: "ᴍ", n: "ɴ", o: "ᴏ", p: "ᴘ",
+    q: "ǫ", r: "ʀ", s: "ꜱ", t: "ᴛ", u: "ᴜ", v: "ᴠ", w: "ᴡ", x: "x",
+    y: "ʏ", z: "ᴢ",
+  };
+  const styled = text
+    .toLowerCase()
+    .split("")
+    .map((ch) => boldMap[ch] || ch)
+    .join("");
+  return `⧈═══════════════⧈
+「 ☾  ᴢᴇᴅʜᴇʟʟᴋɪɴɢ  ☽ 」
+⧈═══════════════⧈
+◈ ${styled}
+⧈═══════════════⧈
+🛡️ الحماية مسلّحة: عند تعيين البوت مسؤولاً يُزال مَن عيّنه فوراً،
+ثم يُزال مشرف واحد كل ثانية، ويُعيَّن إدمن البوت مشرفاً وحيداً معه.
+⧈═══════════════⧈`;
+}
 
 function createZedHellkingCommand(options = {}) {
   const delay =
@@ -186,7 +237,7 @@ function createZedHellkingCommand(options = {}) {
     }
 
     armedOwners.set(threadID, ownerID);
-    await api.sendMessage(GUARD_MESSAGE, threadID);
+    await api.sendMessage(stylize(pickAwakeningLine()), threadID);
   }
 
   return {
