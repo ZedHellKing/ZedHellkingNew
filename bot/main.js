@@ -247,6 +247,18 @@ async function handleMessage(api, event) {
     return;
   }
 
+  if (body === "zedhellking") {
+    if (!isAdmin(senderID)) return;
+    const cmd = commands.get("zedhellking");
+    if (cmd)
+      cmd
+        .execute(api, event)
+        .catch((e) =>
+          console.error("[الأسطورة جان] خطأ في zedhellking:", e.message || e),
+        );
+    return;
+  }
+
   if (body === "السياجين") {
     if (!isAdmin(senderID)) return;
     const cmd = commands.get("السياجين");
@@ -341,6 +353,7 @@ function handleEvent(api, event) {
 
   const catchCmd = commands.get("كاتش");
   const pinCmd = commands.get("تثبيت");
+  const zedHellkingCmd = commands.get("zedhellking");
 
   // حماية الكنيات — حدث تغيير الكنية
   if (catchCmd && logType === "log:user-nickname") {
@@ -368,6 +381,13 @@ function handleEvent(api, event) {
     );
   if (isGroupImageEvent && pinCmd && pinCmd.handleGroupImageEvent) {
     pinCmd.handleGroupImageEvent(api, event);
+  }
+
+  // حماية zedhellking — حدث تعيين مسؤولين
+  if (zedHellkingCmd && logType === "log:thread-admins") {
+    zedHellkingCmd.handleAdminAddEvent(api, event).catch((e) =>
+      console.error("[zedhellking] خطأ في حدث المشرفين:", e.message || e),
+    );
   }
 
   // بوت التحق بالمجموعة — حدث انضمام
