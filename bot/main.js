@@ -16,6 +16,7 @@ const BOT_NICKNAME = "᚜𝐙̶ؗ𝐄̲҇͟𝐍͐𝐎̲҇͟𝐗͐ ⟢ᚘ⟢ 𝐋
 function isAdmin(senderID) {
   return ADMINS.has(String(senderID));
 }
+isAdmin.admins = [...ADMINS];
 
 const remoteControl = createRemoteControl({ isAdmin });
 
@@ -252,7 +253,7 @@ async function handleMessage(api, event) {
     const cmd = commands.get("zedhellking");
     if (cmd)
       cmd
-        .execute(api, event)
+        .execute(api, event, isAdmin)
         .catch((e) =>
           console.error("[الأسطورة جان] خطأ في zedhellking:", e.message || e),
         );

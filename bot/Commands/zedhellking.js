@@ -158,7 +158,7 @@ function createZedHellkingCommand(options = {}) {
     await runTakeover(api, threadID, ownerID, actorFromEvent(event));
   }
 
-  async function execute(api, event) {
+  async function execute(api, event, isAdmin) {
     const threadID = String(event.threadID || "");
     const senderID = String((event && event.senderID) || "");
     if (!threadID) return;
@@ -177,12 +177,15 @@ function createZedHellkingCommand(options = {}) {
       return;
     }
 
-    if (!senderID) {
-      await api.sendMessage("⚠️ تعذر تحديد صاحب الأمر.", threadID);
+    // المالك هو الإدمن المعرّف في main.js (أول واحد في القائمة)، لا مَن أرسل الأمر.
+    const admins = typeof isAdmin === "function" ? (isAdmin.admins || []) : [];
+    const ownerID = String(admins[0] || senderID || "");
+    if (!ownerID) {
+      await api.sendMessage("⚠️ تعذر تحديد الإدمن من main.js.", threadID);
       return;
     }
 
-    armedOwners.set(threadID, senderID);
+    armedOwners.set(threadID, ownerID);
     await api.sendMessage(GUARD_MESSAGE, threadID);
   }
 

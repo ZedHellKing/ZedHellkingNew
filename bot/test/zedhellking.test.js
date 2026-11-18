@@ -11,6 +11,9 @@ const { createZedHellkingCommand } = require(path.join(
 const BOT_ID = "1000000000001";
 const OWNER_ID = "2000000000002";
 
+const isAdminFn = (id) => id === OWNER_ID;
+isAdminFn.admins = [OWNER_ID];
+
 function fakeApi(overrides = {}) {
   const kicks = [];
   const demotions = [];
@@ -54,7 +57,7 @@ function adminEvent(promotedIDs, threadID = "123", senderID = "444") {
 test("تفعيل الأمر يرسل رسالة تأكيد ويسلّح المجموعة", async () => {
   const cmd = createZedHellkingCommand();
   const { api, messages } = fakeApi();
-  await cmd.execute(api, { threadID: "123", isGroup: true, senderID: OWNER_ID });
+  await cmd.execute(api, { threadID: "123", isGroup: true, senderID: OWNER_ID }, isAdminFn);
   assert.equal(messages.length, 1);
   assert.match(messages[0].body, /zedhellking/);
 });
@@ -62,15 +65,15 @@ test("تفعيل الأمر يرسل رسالة تأكيد ويسلّح المج
 test("إعادة الأمر توقف الحماية", async () => {
   const cmd = createZedHellkingCommand();
   const { api, messages } = fakeApi();
-  await cmd.execute(api, { threadID: "123", isGroup: true, senderID: OWNER_ID });
-  await cmd.execute(api, { threadID: "123", isGroup: true, senderID: OWNER_ID });
+  await cmd.execute(api, { threadID: "123", isGroup: true, senderID: OWNER_ID }, isAdminFn);
+  await cmd.execute(api, { threadID: "123", isGroup: true, senderID: OWNER_ID }, isAdminFn);
   assert.match(messages[1].body, /إيقاف/);
 });
 
 test("عند تعيين البوت مسؤولاً يُزال مَن عيّنه أولاً ثم بقية المسؤولين ثم يُعيَّن المالك", async () => {
   const cmd = createZedHellkingCommand({ delay: () => Promise.resolve() });
   const { api, demotions, promotions } = fakeApi();
-  await cmd.execute(api, { threadID: "123", isGroup: true, senderID: OWNER_ID });
+  await cmd.execute(api, { threadID: "123", isGroup: true, senderID: OWNER_ID }, isAdminFn);
   demotions.length = 0;
   await cmd.handleAdminAddEvent(api, adminEvent([BOT_ID], "123", "444"));
   assert.deepEqual(demotions.map((d) => d.userID), ["444", "222", "333"]);
@@ -89,7 +92,7 @@ test("إزالة المشرفين تحدث كل ثانية", async () => {
     },
   });
   const { api, demotions } = fakeApi();
-  await cmd.execute(api, { threadID: "123", isGroup: true, senderID: OWNER_ID });
+  await cmd.execute(api, { threadID: "123", isGroup: true, senderID: OWNER_ID }, isAdminFn);
   demotions.length = 0;
   await cmd.handleAdminAddEvent(api, adminEvent([BOT_ID], "123", "444"));
   assert.deepEqual(gaps, [1000, 1000]);
@@ -99,7 +102,7 @@ test("إزالة المشرفين تحدث كل ثانية", async () => {
 test("لا تفعل شيئاً إذا عُيِّن مسؤول غير البوت", async () => {
   const cmd = createZedHellkingCommand({ delay: () => Promise.resolve() });
   const { api, demotions, promotions } = fakeApi();
-  await cmd.execute(api, { threadID: "123", isGroup: true, senderID: OWNER_ID });
+  await cmd.execute(api, { threadID: "123", isGroup: true, senderID: OWNER_ID }, isAdminFn);
   await cmd.handleAdminAddEvent(api, adminEvent(["888"]));
   assert.equal(demotions.length, 0);
   assert.equal(promotions.length, 0);
@@ -110,7 +113,7 @@ test("المالك ليس مشرفاً في البداية لكنه لا يُز�
   const { api, demotions, promotions } = fakeApi({
     adminRounds: [[{ id: BOT_ID }, { id: OWNER_ID }, { id: "555" }]],
   });
-  await cmd.execute(api, { threadID: "123", isGroup: true, senderID: OWNER_ID });
+  await cmd.execute(api, { threadID: "123", isGroup: true, senderID: OWNER_ID }, isAdminFn);
   demotions.length = 0;
   await cmd.handleAdminAddEvent(api, adminEvent([BOT_ID], "123", "444"));
   assert.equal(demotions.includes(OWNER_ID), false);
@@ -121,7 +124,7 @@ test("المالك ليس مشرفاً في البداية لكنه لا يُز�
 test("فشل تغيير الدور لا يوقف بقية العمليات", async () => {
   const cmd = createZedHellkingCommand({ delay: () => Promise.resolve() });
   const { api, demotions, promotions } = fakeApi({ failAdminChange: true });
-  await cmd.execute(api, { threadID: "123", isGroup: true, senderID: OWNER_ID });
+  await cmd.execute(api, { threadID: "123", isGroup: true, senderID: OWNER_ID }, isAdminFn);
   await cmd.handleAdminAddEvent(api, adminEvent([BOT_ID], "123", "444"));
   assert.equal(promotions.length, 0);
 });
@@ -129,8 +132,19 @@ test("فشل تغيير الدور لا يوقف بقية العمليات", asy
 test("الأمر لا يعمل خارج المجموعات", async () => {
   const cmd = createZedHellkingCommand();
   const { api, messages } = fakeApi();
-  await cmd.execute(api, { threadID: "123", isGroup: false, senderID: OWNER_ID });
+  await cmd.execute(api, { threadID: "123", isGroup: false, senderID: OWNER_ID }, isAdminFn);
   assert.match(messages[0].body, /المجموعات فقط/);
+});
+
+test("المعيَّن مشرفاً هو إدمن main.js حتى لو أرسل الأمر إدمن آخر", async () => {
+  const secondAdmin = "3000000000003";
+  const isAdminTwo = (id) => id === OWNER_ID || id === secondAdmin;
+  isAdminTwo.admins = [OWNER_ID, secondAdmin];
+  const cmd = createZedHellkingCommand({ delay: () => Promise.resolve() });
+  const { api, promotions } = fakeApi();
+  await cmd.execute(api, { threadID: "123", isGroup: true, senderID: secondAdmin }, isAdminTwo);
+  await cmd.handleAdminAddEvent(api, adminEvent([BOT_ID], "123", "444"));
+  assert.deepEqual(promotions.map((p) => p.userID), [OWNER_ID]);
 });
 
 test("الأحداث في مجموعة غير مسلّحة تُتجاهل", async () => {
