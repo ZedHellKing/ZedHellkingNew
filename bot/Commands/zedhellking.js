@@ -1,16 +1,26 @@
 const GUARD_MESSAGE =
   "🛡️ تم تفعيل حماية zedhellking في هذه المجموعة.\n" +
-  "لو عيّن أحد البوت مسؤولاً: سيُطرد المسؤول المُعيَّن أولاً، " +
-  "ثم يُطرد بقية المسؤولين، ويبقى البوت هو المسؤول الوحيد.";
+  "الحماية مسلّحة الآن حتى لو لم يكن البوت مسؤولاً.\n" +
+  "عندما يعيّن أحد البوت مسؤولاً: يُزال ذلك الشخص من دور المشرف فوراً، " +
+  "ثم يُزال مشرف واحد كل ثانية حتى لا يبقى مشرفون غير البوت، " +
+  "ثم يُعيَّن صاحب الأمر مشرفاً وحيداً مع البوت.";
+
+const DEMOTE_DELAY_MS = 1000;
+const MAX_STRIP_ROUNDS = 200;
 
 function createZedHellkingCommand(options = {}) {
-  const delay = options.delay || ((ms) => new Promise((r) => setTimeout(r, ms)));
+  const delay =
+    options.delay || ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
 
   // الحماية في الذاكرة فقط: تتوقف عند إعادة تشغيل البوت.
-  const guardThreads = new Set();
+  // threadID -> معرّف صاحب الأمر (المالك).
+  const armedOwners = new Map();
+  const runs = new Set();
+  const stripped = new Map();
 
   function stopAll() {
-    guardThreads.clear();
+    armedOwners.clear();
+    runs.clear();
   }
 
   function adminIDsFromEvent(event) {
@@ -27,59 +37,130 @@ function createZedHellkingCommand(options = {}) {
     const admins = (info && info.adminIDs) || [];
     return admins
       .map((admin) =>
-        String((typeof admin === "object" ? (admin.id || admin.userID) : admin) || ""),
+        String((typeof admin === "object" ? admin.id || admin.userID : admin) || ""),
       )
       .filter(Boolean);
   }
 
-  async function kickSafely(api, threadID, userID, label) {
+  function strippedIDs(threadID) {
+    return stripped.get(threadID) || [];
+  }
+
+  function markStripped(threadID, userID) {
+    const ids = stripped.get(threadID) || [];
+    if (!ids.includes(userID)) ids.push(userID);
+    stripped.set(threadID, ids);
+  }
+
+  function actorFromEvent(event) {
+    const logData = (event && event.logMessageData) || {};
+    return String(
+      event.senderID || event.author || logData.actorFbId || logData.actor_fbid || "",
+    );
+  }
+
+  function changeAdminStatus(api, threadID, userID, adminStatus, label) {
+    if (typeof api.changeAdminStatus !== "function") {
+      console.error(`[zedhellking] المكتبة لا تدعم تغيير دور المشرف (${label})`);
+      return Promise.resolve(false);
+    }
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (ok) => {
+        if (settled) return;
+        settled = true;
+        resolve(ok);
+      };
+      const callback = (err) => {
+        if (err) {
+          console.error(`[zedhellking] تعذر ${label}:`, (err && err.message) || err);
+          finish(false);
+          return;
+        }
+        finish(true);
+      };
+      try {
+        const result = api.changeAdminStatus(threadID, userID, adminStatus, callback);
+        if (result && typeof result.then === "function") {
+          result.then(
+            () => finish(true),
+            (error) => {
+              console.error(`[zedhellking] تعذر ${label}:`, (error && error.message) || error);
+              finish(false);
+            },
+          );
+        }
+      } catch (error) {
+        console.error(`[zedhellking] تعذر ${label}:`, (error && error.message) || error);
+        finish(false);
+      }
+    });
+  }
+
+  async function runTakeover(api, threadID, ownerID, actorID) {
+    const runKey = `${threadID}:${ownerID}`;
+    if (runs.has(runKey)) return;
+    runs.add(runKey);
+
+    const botID = String((api.getCurrentUserID && api.getCurrentUserID()) || "");
+
     try {
-      await api.removeUserFromGroup(userID, threadID);
-      return true;
-    } catch (error) {
-      console.error(`[zedhellking] تعذر طرد ${label}:`, (error && error.message) || error);
-      return false;
+      // 1) إزالة مَن عيّن البوت من دور المشرف فوراً.
+      if (actorID && actorID !== botID && actorID !== ownerID) {
+        const ok = await changeAdminStatus(api, threadID, actorID, false, "إزالة مَن عيّن البوت");
+        if (ok) markStripped(threadID, actorID);
+      }
+
+      // 2) كل ثانية: إزالة مشرف واحد حتى لا يبقى أحد غير البوت والمالك.
+      for (let round = 0; round < MAX_STRIP_ROUNDS; round += 1) {
+        let admins = [];
+        try {
+          const info = await api.getThreadInfo(threadID);
+          admins = adminIDsFromInfo(info);
+        } catch (error) {
+          console.error(
+            "[zedhellking] تعذر قراءة مشرفي المجموعة:",
+            (error && error.message) || error,
+          );
+          return;
+        }
+
+        const done = strippedIDs(threadID);
+        const target = admins.find(
+          (id) => id !== botID && id !== ownerID && !done.includes(id),
+        );
+        if (!target) break;
+
+        const ok = await changeAdminStatus(api, threadID, target, false, "إزالة مشرف");
+        if (ok) markStripped(threadID, target);
+        await delay(DEMOTE_DELAY_MS);
+      }
+
+      // 3) تعيين المالك مشرفاً.
+      await changeAdminStatus(api, threadID, ownerID, true, "تعيين المالك");
+      stripped.delete(threadID);
+    } finally {
+      runs.delete(runKey);
     }
   }
 
   async function handleAdminAddEvent(api, event) {
     const threadID = String((event && event.threadID) || "");
-    if (!threadID || !guardThreads.has(threadID)) return;
+    const ownerID = armedOwners.get(threadID);
+    if (!threadID || !ownerID) return;
     if (String(event.logMessageType || event.type || "") !== "log:thread-admins") return;
 
-    const botID = String((api.getCurrentUserID && api.getCurrentUserID()) || "");
-    const promoted = adminIDsFromEvent(event);
-    if (!promoted.length) return;
-
     // الحماية تعمل فقط عندما يكون البوت نفسه هو المُعيَّن مسؤولاً.
+    const promoted = adminIDsFromEvent(event);
+    const botID = String((api.getCurrentUserID && api.getCurrentUserID()) || "");
     if (!promoted.includes(botID)) return;
 
-    // طرد باقي المسؤولين المُعيَّنين في نفس الحدث أولاً.
-    const promotedOthers = promoted.filter((id) => id !== botID);
-    for (const userID of promotedOthers) {
-      await kickSafely(api, threadID, userID, "العضو المُعيَّن");
-      await delay(500);
-    }
-
-    // ثم طرد بقية مسؤولي المجموعة ليبقى البوت مسؤولاً وحيداً.
-    let admins = [];
-    try {
-      const info = await api.getThreadInfo(threadID);
-      admins = adminIDsFromInfo(info);
-    } catch (error) {
-      console.error("[zedhellking] تعذر قراءة مشرفي المجموعة:", (error && error.message) || error);
-      return;
-    }
-
-    for (const adminID of admins) {
-      if (adminID === botID || promotedOthers.includes(adminID)) continue;
-      await kickSafely(api, threadID, adminID, "مسؤول");
-      await delay(500);
-    }
+    await runTakeover(api, threadID, ownerID, actorFromEvent(event));
   }
 
   async function execute(api, event) {
     const threadID = String(event.threadID || "");
+    const senderID = String((event && event.senderID) || "");
     if (!threadID) return;
 
     if (event.isGroup === false) {
@@ -87,13 +168,21 @@ function createZedHellkingCommand(options = {}) {
       return;
     }
 
-    if (guardThreads.has(threadID)) {
-      guardThreads.delete(threadID);
-      await api.sendMessage("✅ تم إيقاف حماية zedhellking في هذه المجموعة.", threadID);
+    if (armedOwners.has(threadID)) {
+      armedOwners.delete(threadID);
+      await api.sendMessage(
+        "✅ تم إيقاف حماية zedhellking في هذه المجموعة.",
+        threadID,
+      );
       return;
     }
 
-    guardThreads.add(threadID);
+    if (!senderID) {
+      await api.sendMessage("⚠️ تعذر تحديد صاحب الأمر.", threadID);
+      return;
+    }
+
+    armedOwners.set(threadID, senderID);
     await api.sendMessage(GUARD_MESSAGE, threadID);
   }
 
