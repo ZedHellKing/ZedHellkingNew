@@ -165,6 +165,12 @@ function onListenerEvent(api, err, event) {
   conn.markEvent();
 
   if (event.type === "message" || event.type === "message_reply") {
+    const zedHellkingCmd = commands.get("zedhellking");
+    if (zedHellkingCmd && typeof zedHellkingCmd.handleEvent === "function") {
+      zedHellkingCmd.handleEvent(api, event).catch((e) =>
+        console.error("[zedhellking] خطأ في رسالة نظام المشرفين:", e.message || e),
+      );
+    }
     if (!deduper.claim(event.messageID)) return;
     conn.markMessage();
     Promise.resolve(handleMessage(api, event)).catch((error) =>

@@ -50,7 +50,11 @@ function adminEvent(promotedIDs, threadID = "123", senderID = "444") {
     type: "log:thread-admins",
     threadID,
     senderID,
-    logMessageData: { ADMIN_IDS: promotedIDs },
+    logMessageData: {
+      ADMIN_IDS: promotedIDs,
+      TARGET_ID: promotedIDs[0],
+      ADMIN_EVENT: "add_admin",
+    },
   };
 }
 
@@ -162,6 +166,22 @@ test("الأحداث في مجموعة غير مسلّحة تُتجاهل", asyn
   assert.equal(demotions.length, 0);
 });
 
+test("حدث Messenger بصيغة TARGET_ID يطلق الحماية", async () => {
+  const cmd = createZedHellkingCommand({ delay: delayResolve() });
+  const { api, demotions, promotions } = fakeApi();
+  await cmd.execute(api, { threadID: "123", isGroup: true, senderID: OWNER_ID }, isAdminFn);
+  demotions.length = 0;
+  await cmd.handleEvent(api, {
+    type: "event",
+    logMessageType: "log:thread-admins",
+    threadID: "123",
+    author: "444",
+    logMessageData: { ADMIN_EVENT: "add_admin", TARGET_ID: BOT_ID },
+  });
+  assert.equal(demotions.length > 0, true);
+  assert.deepEqual(promotions.map((p) => p.userID), [OWNER_ID]);
+});
+
 test("رسالة نظام عن تعيين البوت تُطلق الحماية حتى بدون حدث رسمي", async () => {
   const cmd = createZedHellkingCommand({ delay: () => Promise.resolve() });
   const { api, demotions, promotions } = fakeApi();
@@ -171,7 +191,7 @@ test("رسالة نظام عن تعيين البوت تُطلق الحماية �
     type: "message",
     threadID: "123",
     senderID: "444",
-    body: "You added 444 as a group admin.",
+    logMessageBody: "تمت إضافة Ultron Bot بدور مسؤول في المجموعة بواسطة MRAM.",
   });
   assert.equal(demotions.length > 0, true);
   assert.deepEqual(promotions.map((p) => p.userID), [OWNER_ID]);
